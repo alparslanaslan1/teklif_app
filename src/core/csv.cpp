@@ -1,0 +1,174 @@
+#include "csv.h"
+
+#include <QStringList>
+
+namespace {
+
+// RFC4180'e uygun düşük seviye tokenizer: tırnaklı alan içindeki virgül ve
+// satır sonlarını metin sayar, çift tırnağı kaçış olarak çözer (""->").
+// Satır bazlı split() KULLANILMAZ — tırnaklı bir alan içinde gerçek bir
+// satır sonu (\n) olabilir, o zaman naif satır bölme yanlış sonuç verir.
+QVector<QVector<QString>> csvTokenize(const QString &icerik)
+{
+    QVector<QVector<QString>> satirlar;
+    QVector<QString> satir;
+    QString alan;
+    bool tirnakIcinde = false;
+    const int n = icerik.length();
+    int i = 0;
+
+    auto satiriBitir = [&]() {
+        satir.append(alan);
+        alan.clear();
+        satirlar.append(satir);
+        satir.clear();
+    };
+
+    while (i < n) {
+        const QChar c = icerik.at(i);
+
+        if (tirnakIcinde) {
+            if (c == QLatin1Char('"')) {
+                if (i + 1 < n && icerik.at(i + 1) == QLatin1Char('"')) {
+                    alan += QLatin1Char('"');
+                    i += 2;
+                    continue;
+                }
+                tirnakIcinde = false;
+                ++i;
+                continue;
+            }
+            alan += c;
+            ++i;
+            continue;
+        }
+
+        if (c == QLatin1Char('"')) {
+            tirnakIcinde = true;
+            ++i;
+            continue;
+        }
+        if (c == QLatin1Char(',')) {
+            satir.append(alan);
+            alan.clear();
+            ++i;
+            continue;
+        }
+        if (c == QLatin1Char('\r')) {
+            ++i; // \r\n durumunda \n zaten satırı bitirecek; tek başına \r'yi de yut
+            continue;
+        }
+        if (c == QLatin1Char('\n')) {
+            satiriBitir();
+            ++i;
+            continue;
+        }
+
+        alan += c;
+        ++i;
+    }
+
+    // Son satır bir satır sonuyla bitmemiş olabilir.
+    if (!alan.isEmpty() || !satir.isEmpty())
+        satiriBitir();
+
+    return satirlar;
+}
+
+QString csvAlanKac(const QString &alan)
+{
+    if (alan.contains(QLatin1Char(',')) || alan.contains(QLatin1Char('"'))
+        || alan.contains(QLatin1Char('\n')) || alan.contains(QLatin1Char('\r'))) {
+        QString kacan = alan;
+        kacan.replace(QLatin1Char('"'), QStringLiteral("\"\""));
+        return QLatin1Char('"') + kacan + QLatin1Char('"');
+    }
+    return alan;
+}
+
+} // namespace
+
+QVector<CsvItemRow> csvSatirlariniAyristir(const QString &icerik, QString *errorOut)
+{
+    const QVector<QVector<QString>> hamSatirlar = csvTokenize(icerik);
+
+    // Tamamen boş satırları (örn. dosya sonundaki fazladan boş satır, ya da
+    // elle düzenlenmiş bir dosyada araya sıkıştış boş satır) yok say —
+    // bunlar bir hata değil, CSV dosyalarında sık rastlanan bir durum.
+    QVector<QVector<QString>> satirlar;
+    for (const auto &s : hamSatirlar) {
+        if (s.size() == 1 && s.first().trimmed().isEmpty())
+            continue;
+        satirlar.append(s);
+    }
+
+    if (satirlar.isEmpty()) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Dosya boş.");
+        return {};
+    }
+
+    constexpr int SUTUN_SAYISI = 5;
+    QVector<CsvItemRow> sonuc;
+
+    // i=0 başlık satırıdır, atlanır.
+    for (int i = 1; i < satirlar.size(); ++i) {
+        const QVector<QString> &s = satirlar[i];
+        const int satirNo = i + 1; // kullanıcıya gösterilen (1: başlık) satır no
+
+        if (s.size() != SUTUN_SAYISI) {
+            if (errorOut) {
+                *errorOut = QStringLiteral("Satır %1: %2 sütun bekleniyordu, %3 bulundu.")
+                                .arg(satirNo)
+                                .arg(SUTUN_SAYISI)
+                                .arg(s.size());
+            }
+            return {};
+        }
+
+        const QString kod = s[0].trimmed();
+        const QString ad = s[1].trimmed();
+        const QString birim = s[2].trimmed();
+        const QString fiyatMetni = s[3].trimmed();
+        const QString kategoriAdi = s[4].trimmed();
+
+        if (kod.isEmpty() || ad.isEmpty() || birim.isEmpty()) {
+            if (errorOut)
+                *errorOut = QStringLiteral("Satır %1: kod, ad ve birim boş olamaz.").arg(satirNo);
+            return {};
+        }
+
+        const std::optional<Money> fiyat = Money::fromString(fiyatMetni);
+        if (!fiyat.has_value()) {
+            if (errorOut) {
+                *errorOut =
+                    QStringLiteral("Satır %1: geçersiz fiyat \"%2\".").arg(satirNo).arg(fiyatMetni);
+            }
+            return {};
+        }
+
+        sonuc.append(CsvItemRow{kod, ad, birim, fiyat.value(), kategoriAdi});
+    }
+
+    return sonuc;
+}
+
+QString csvOlustur(const QVector<Item> &kalemler, const QHash<qint64, QString> &kategoriAdlari)
+{
+    QStringList satirlar;
+    satirlar << QStringLiteral("kod,ad,birim,fiyat,kategori");
+
+    for (const Item &it : kalemler) {
+        const QString kategori = it.categoryId != 0 ? kategoriAdlari.value(it.categoryId) : QString();
+        const QStringList alanlar = {
+            csvAlanKac(it.kod),
+            csvAlanKac(it.ad),
+            csvAlanKac(it.birim),
+            csvAlanKac(it.varsayilanFiyat.toString()),
+            csvAlanKac(kategori),
+        };
+        satirlar << alanlar.join(QLatin1Char(','));
+    }
+
+    return satirlar.join(QStringLiteral("\n")) + QStringLiteral("\n");
+}
