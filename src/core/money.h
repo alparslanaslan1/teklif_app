@@ -32,6 +32,29 @@ public:
     // "1.234,56" biçiminde, binlik ayraçlı, iki ondalık haneli gösterim.
     QString toString() const;
 
+
+    // ═══ Satır içi (inline) aritmetik ve karşılaştırma operatörleri ═══════
+    // NE YAPAR : Tüm işlemler DOĞRUDAN m_kurus (kuruş tam sayısı) üzerinde
+    //            yapılır. Hiçbiri double'a uğramaz, dolayısıyla + - * ve
+    //            karşılaştırmalarda yuvarlama hatası OLUŞAMAZ.
+    //            (İstisna: operator*(double) ve operator/ — onlar .cpp'de ve
+    //             yuvarlama YAPARLAR, oradaki açıklamalara bakın.)
+    //
+    // DEBUG    : constexpr oldukları için derleyici bu çağrıları çoğu zaman
+    //            satır içine alır; hata ayıklayıcı ADIM ADIM GİRMEYEBİLİR ve
+    //            breakpoint tetiklenmeyebilir. İçeriye bakmanız gerekiyorsa
+    //            Debug (-O0) yapılandırmasıyla derleyin ya da ara değeri
+    //            geçici bir değişkene alıp onu bastırın:
+    //              const Money t = a + b;  qDebug() << t.kurus();
+    //
+    // TUZAK    : Taşma koruması YOKTUR. m_kurus qint64'tür; + - * işlemleri
+    //            sınırı aşarsa SESSİZCE sarar (imzalı taşma = tanımsız
+    //            davranış). Pratikte teklif tutarlarında imkânsıza yakındır,
+    //            ama tutar aniden negatife dönüyorsa ilk şüpheli budur:
+    //              qDebug() << a.kurus() << b.kurus();
+    //
+    // NOT      : operator+= / -= aynı mantığı yerinde (in-place) uygular;
+    //            Calculator::totals ara toplamı bunlarla biriktirir.
     constexpr Money operator+(const Money &o) const noexcept { return Money(m_kurus + o.m_kurus); }
     constexpr Money operator-(const Money &o) const noexcept { return Money(m_kurus - o.m_kurus); }
     constexpr Money operator*(qint64 kat) const noexcept { return Money(m_kurus * kat); }
