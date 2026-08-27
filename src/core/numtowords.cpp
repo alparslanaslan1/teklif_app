@@ -5,12 +5,9 @@
 namespace {
 
 
-// ═══ birler() ═════════════════════════════════════════════════════════════
-// NE YAPAR : 0-9 rakamlarının Türkçe adlarını verir. 0. eleman BİLEREK boş
-//            string'tir: birler()[0] eklendiğinde hiçbir şey eklenmemiş olur,
-//            böylece çağıran tarafta "sıfırsa ekleme" kontrolü gerekmez.
-// DEBUG    : İndeks daima 0-9 aralığında olmalı. Dışına çıkarsanız QStringList
-//            operator[] TANIMSIZ DAVRANIŞ üretir (bounds check yok).
+// 0-9 rakamlarının Türkçe adları. 0. eleman bilerek boş string: birler()[0]
+// eklendiğinde hiçbir şey eklenmemiş olur, böylece çağıran tarafta "sıfırsa
+// atla" kontrolü gerekmez.
 const QStringList &birler()
 {
     static const QStringList v = {"",     "bir",  "iki",  "üç",    "dört",
@@ -19,12 +16,8 @@ const QStringList &birler()
 }
 
 
-// ═══ onlar() ══════════════════════════════════════════════════════════════
-// NE YAPAR : Onlar basamağının Türkçe adlarını verir (10=on, 20=yirmi ...).
-//            birler() gibi 0. eleman boş string'tir.
-// NOT      : Türkçede İngilizcedeki "thirteen" gibi birleşik sözcükler yoktur;
-//            13 = "on" + "üç" olarak doğrudan birleşir. Bu yüzden 11-19 için
-//            ayrı bir tablo GEREKMEZ.
+// Onlar basamağının adları (10 = on, 20 = yirmi ...). 0. eleman yine boş.
+// Türkçede 13 = "on" + "üç" diye birleştiği için 11-19'a ayrı tablo gerekmez.
 const QStringList &onlar()
 {
     static const QStringList v = {"",      "on",     "yirmi",  "otuz",   "kırk",
@@ -35,14 +28,8 @@ const QStringList &onlar()
 // 3'erli basamak grupları için ölçek adları: 0. grup ("") birler-yüzler,
 // 1. grup "bin", 2. grup "milyon" ...
 
-// ═══ olcekler() ═══════════════════════════════════════════════════════════
-// NE YAPAR : 3'erli basamak gruplarının ölçek adları.
-//            idx 0 = "" (birler-yüzler), 1 = "bin", 2 = "milyon", 3 = "milyar",
-//            4 = "trilyon".
-// TUZAK    : Liste 5 elemanda BİTİYOR. qint64 ~9,2 KATRİLYONA kadar çıkabilir,
-//            yani idx 5 ve 6 mümkündür. O durumda sayiYaziyla() ölçek yerine
-//            BOŞ STRING koyar -> hata vermeden YANLIŞ yazı üretir.
-//            Katrilyon mertebesinde bir sonuç görüyorsanız şüpheli burasıdır.
+// 3'erli basamak gruplarının ölçek adları: idx 0 = birler-yüzler (""),
+// 1 = "bin", 2 = "milyon", 3 = "milyar", 4 = "trilyon".
 const QStringList &olcekler()
 {
     static const QStringList v = {"", "bin", "milyon", "milyar", "trilyon"};
@@ -57,26 +44,14 @@ const QStringList &olcekler()
 // her zaman bastırılır, gruptan bağımsız) — o BIR[yuz] seçiminde ayrıca
 // ele alınıyor, burada karıştırılmamalı.
 
-// ═══ grupYaziyla() ════════════════════════════════════════════════════════
-// NE YAPAR : 0-999 arası TEK bir basamak grubunu yazıya döker.
-//            `idx` bu grubun ölçeğidir (1 = "bin" grubu) ve sadece aşağıdaki
-//            "bir" bastırma kuralı için gereklidir.
-//
-// ADIM ADIM:
-//   1) Grup üç basamağa ayrılır:  yuz = grup/100, on = (grup%100)/10, bir = grup%10
-//   2) YÜZLER: yuz > 0 ise "yüz" eklenir. yuz == 1 ise önüne "bir" KONMAZ
-//      (100 -> "yüz", asla "biryüz"). Bu kural her grupta geçerlidir.
-//   3) ONLAR: onlar()[on] doğrudan eklenir (0 ise boş string gelir).
-//   4) BİRLER: burada özel kural var —
-//        birBastir = (idx == 1 && bir == 1 && yuz == 0 && on == 0)
-//      Yani SADECE "bin" grubunda VE grup tam olarak 1 iken "bir" bastırılır:
-//        1000  -> "bin"        (bir bastırıldı)
-//        1001  -> "binbir"     (birler grubu idx=0, bastırılmaz)
-//        4000  -> "dörtbin"    (bir != 1, bastırılmaz)
-//        21000 -> "yirmibirbin"(on != 0, bastırılmaz)  <-- en sık yanlış anlaşılan
-//
-// DEBUG    : Yanlış bir sözcük görüyorsanız üç basamağı ve bayrağı bastırın:
-//              qDebug() << grup << idx << yuz << on << bir << birBastir;
+// 0-999 arası tek bir basamak grubunu yazıya döker.
+//   grup      : 0-999 arası değer
+//   idx       : bu grubun ölçeği; yalnızca aşağıdaki "bir" bastırma kuralı için
+//   yuz/on/bir: grubun üç basamağı
+//   birBastir : sadece "bin" grubunda (idx == 1) ve grup tam olarak 1 iken
+//               true olur -> 1000 = "bin" ("birbin" değil). Buna karşılık
+//               1001 = "binbir", 4000 = "dörtbin", 21000 = "yirmibirbin".
+// Yüzler hanesindeki 1 ise her grupta bastırılır: 100 -> "yüz", "biryüz" değil.
 QString grupYaziyla(int grup, int idx)
 {
     const int yuz = grup / 100;
@@ -98,31 +73,16 @@ QString grupYaziyla(int grup, int idx)
 } // namespace
 
 
-// ═══ sayiYaziyla() ════════════════════════════════════════════════════════
-// NE YAPAR : Tam sayıyı Türkçe yazıya çevirir. Sözcükler BİTİŞİK yazılır
-//            ("binikiyüzotuzdört") — teklif/sözleşme belgelerindeki yerleşik
-//            Türkçe yazım geleneği budur.
-//
-// ADIM ADIM:
-//   1) n == 0 ise kısayol: "sıfır".                              [ÇIKIŞ 1]
-//   2) negatif bayrağı alınır ve mutlak değer QUINT64'e taşınır.
-//      Neden quint64: qint64'ün en küçük değerinin (-9223372036854775808)
-//      mutlak değeri qint64'e SIĞMAZ; `-n` yapmak taşma olurdu. Bu yüzden
-//      `-(n+1) + 1` hilesi kullanılır.
-//   3) Sayı SAĞDAN SOLA 3'erli gruplara ayrılır (kalan = kalan / 1000):
-//      a) grup = kalan % 1000
-//      b) grup 0 ise ATLANIR -> "birmilyonsıfırbinüç" gibi çıktı oluşmaz.
-//      c) grup != 0 ise grupYaziyla(grup, idx) + olcekler()[idx] üretilip
-//         listenin BAŞINA eklenir (prepend), çünkü sağdan sola gidiyoruz.
-//   4) Parçalar ayraçsız birleştirilir; negatifse başa "eksi " gelir.
-//
-// DEBUG    : Döngü içinde her turu bastırmak neredeyse her hatayı gösterir:
-//              qDebug() << "idx" << idx << "grup" << grup << "parca" << parcalar;
-//            1.000.000 için beklenen turlar:
-//              idx=0 grup=0   (atlanır)
-//              idx=1 grup=0   (atlanır)
-//              idx=2 grup=1   -> "birmilyon"
-//            Not: burada "bir" bastırılmaz; bastırma SADECE idx==1'de olur.
+// Tam sayıyı Türkçe yazıya döker. Sözcükler boşluksuz bitişik yazılır
+// ("binikiyüzotuzdört") — teklif/sözleşme belgelerindeki yerleşik yazım.
+//   negatif  : işaret bayrağı
+//   mutlak   : mutlak değer, quint64 olarak. qint64'ün en küçük değerinin
+//              mutlak değeri qint64'e sığmadığı için quint64'e geçilir.
+//   kalan    : her turda 1000'e bölünerek küçülen kalan
+//   grup     : kalan % 1000 -> sağdan sola işlenen 3'lü grup. 0 ise atlanır,
+//              böylece "birmilyonsıfırbinüç" gibi bir çıktı oluşmaz.
+//   idx      : kaçıncı gruptayız; olcekler() indeksine karşılık gelir
+//   parcalar : sağdan sola gidildiği için her parça listenin BAŞINA eklenir
 QString sayiYaziyla(qint64 n)
 {
     if (n == 0)
@@ -154,23 +114,11 @@ QString sayiYaziyla(qint64 n)
 }
 
 
-// ═══ tutarYaziyla() ═══════════════════════════════════════════════════════
-// NE YAPAR : Kuruş cinsinden tutarı "... TL ... kuruş" biçiminde yazıya döker.
-//            Teklif belgesinin altındaki "yalnız ..." satırı için kullanılır.
-//
-// ADIM ADIM:
-//   1) İşaret ayrılır, mutlak kuruş alınır.
-//   2) tl = mutlakKurus / 100   ve   kr = mutlakKurus % 100.
-//   3) sayiYaziyla(tl) + " TL"  her zaman yazılır (tl 0 olsa bile "sıfır TL").
-//   4) kr != 0 İSE " " + sayiYaziyla(kr) + " kuruş" eklenir.
-//      kr == 0 ise kuruş kısmı HİÇ yazılmaz -> "yüz TL", asla
-//      "yüz TL sıfır kuruş" değil.
-//   5) Orijinal tutar negatifse en başa "eksi " eklenir.
-//
-// DEBUG    : Örnek ara değerler (12345 kuruş): tl=123, kr=45
-//              -> "yüzyirmiüç TL kırkbeş kuruş"
-//            Beklenmedik "sıfır kuruş" görüyorsanız 4. adımdaki kr != 0
-//            koşulu atlanmıştır.  qDebug() << tl << kr;
+// Kuruş cinsinden bir tutarı "... TL ... kuruş" biçiminde yazıya döker
+// (belgenin altındaki "yalnız ..." satırı için).
+//   mutlakKurus : işaret ayrıldıktan sonraki kuruş değeri
+//   tl / kr     : lira ve kuruş kısımları
+// kr sıfırsa kuruş kısmı hiç yazılmaz: "yüz TL", asla "yüz TL sıfır kuruş" değil.
 QString tutarYaziyla(const Money &tutar)
 {
     const qint64 kurus = tutar.kurus();

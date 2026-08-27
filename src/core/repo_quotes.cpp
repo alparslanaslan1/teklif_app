@@ -6,16 +6,8 @@
 namespace {
 
 
-// ═══ rollback() ═══════════════════════════════════════════════════════════
-// NE YAPAR : Açık transaction'ı geri alır. Bu dosyadaki her hata dalında
-//            çağrıldığı için ayrı bir yardımcıya alınmış.
-//
-// DEBUG    : Dönüş değeri çağıranlar tarafından KULLANILMIYOR. ROLLBACK'in
-//            kendisi başarısız olursa (ör. açık transaction yoksa) bu sessizce
-//            geçilir. Şüphede:
-//              if (!rb.exec(...)) qDebug() << "ROLLBACK FAIL:" << rb.lastError().text();
-//            "cannot rollback - no transaction is active" mesajı, eşleşen
-//            BEGIN'in hiç çalışmadığını gösterir.
+// Açık transaction'ı geri alır. Bu dosyadaki her hata dalında çağrıldığı için
+// ayrı bir yardımcıya alınmıştır.
 bool rollback(QSqlDatabase &db)
 {
     QSqlQuery rb(db);
@@ -25,37 +17,16 @@ bool rollback(QSqlDatabase &db)
 } // namespace
 
 
-// ═══ RepoQuotes::nextQuoteNumberLocked() ══════════════════════════════════
-// NE YAPAR : Sıradaki teklif numarasını üretir ve sayacı artırır.
-//            "000001", "000002", ... biçiminde 6 haneli sıfır dolgulu.
-//
-// ÖN KOŞUL — İSMİNDEKİ "Locked" BUNU ANLATIR:
-//   Çağrıldığı yerde ZATEN AÇIK bir transaction (BEGIN IMMEDIATE) olmalıdır.
-//   Okuma ve yazma AYNI transaction içinde olduğu için iki eşzamanlı kayıt
-//   asla aynı numarayı alamaz. Transaction olmadan çağırırsanız numara
-//   çakışması OLUR ve teklif_no UNIQUE olduğu için INSERT patlar.
-//
-// ADIM ADIM:
-//   1) settings tablosundan 'teklif_no_sayac' okunur.
-//      Kayıt YOKSA (ilk teklif) mevcut = 0 kabul edilir — hata değildir.
-//   2) sonraki = mevcut + 1
-//   3) UPSERT: INSERT ... ON CONFLICT(key) DO UPDATE SET value = :v
-//      Yani kayıt yoksa oluşturur, varsa günceller. Tek ifadede iki iş.
-//   4) rightJustified(6, '0') ile sıfır dolgulanır.
-//      ÜST SINIR YOKTUR: 999999'dan sonra kendiliğinden 7 haneye taşar
-//      ("1000000"). Bu kasıtlıdır, çökme olmaz.
-//
-// DEBUG    : Numara beklenmedik geliyorsa sayacın DB'deki halini okuyun:
-//              SELECT value FROM settings WHERE key='teklif_no_sayac';
-//            Kod içinde:  qDebug() << mevcut << "->" << sonraki;
-//            • Her seferinde "000001" geliyorsa 3. adımdaki yazma commit
-//              edilmiyor demektir (dıştaki transaction ROLLBACK oluyor).
-//            • Numara atlıyorsa: teklif kaydı BAŞARISIZ olup ROLLBACK
-//              edilmiştir; sayaç da geri alınır, yani atlama OLMAMALI.
-//              Atlama görüyorsanız transaction sınırları bozulmuştur.
-//
-// NOT      : Sayaç YIL BAZINDA SIFIRLANMAZ, sürekli artar (tasarım kararı;
-//            testi: sequenceSurvivesAcrossYearBoundary).
+// Sıradaki teklif numarasını üretir ve sayacı artırır ("000001", "000002" ...).
+// İsmindeki "Locked", çağrıldığı yerde ZATEN açık bir transaction bulunması
+// gerektiğini anlatır: sayacın okunması ve yazılması aynı transaction içinde
+// olduğu için art arda iki kayıt asla aynı numarayı alamaz.
+//   mevcut  : settings tablosundaki sayacın son değeri. Kayıt yoksa (ilk
+//             teklif) 0 kabul edilir; bu bir hata değildir.
+//   sonraki : mevcut + 1. UPSERT ile settings'e geri yazılır — kayıt yoksa
+//             oluşturulur, varsa güncellenir.
+// Numara sürekli artar, yıl bazında sıfırlanmaz. 999999'dan sonra kendiliğinden
+// 7 haneye taşar; rightJustified minimumu garanti eder, üst sınır koymaz.
 QString RepoQuotes::nextQuoteNumberLocked(QSqlDatabase &db, QString *errorOut)
 {
     QSqlQuery oku(db);
@@ -88,31 +59,12 @@ QString RepoQuotes::nextQuoteNumberLocked(QSqlDatabase &db, QString *errorOut)
 }
 
 
-// ═══ RepoQuotes::insertLines() ════════════════════════════════════════════
-// NE YAPAR : Bir teklifin tüm satırlarını quote_lines tablosuna yazar.
-//            Hem add() hem update() bunu kullanır.
-//
-// ADIM ADIM:
-//   1) INSERT BİR KEZ hazırlanır (prepare döngünün DIŞINDA) — doğru kalıp
-//      budur; her turda sadece bindValue yapılır. (RepoItems::importCsv bunu
-//      yapmıyor, karşılaştırmak için bakabilirsiniz.)
-//   2) Her satır için değerler bind edilip exec() edilir.
-//      • miktar     -> REAL (double olarak yazılır)
-//      • birimFiyat -> .kurus() ile tam sayı
-//      • tutar      -> .kurus(); ÖNCEDEN hesaplanmış değer yazılır,
-//                      DB tarafında yeniden hesaplanmaz
-//   3) Herhangi bir satır patlarsa hemen false döner; ÇAĞIRAN taraf
-//      ROLLBACK etmekle yükümlüdür (bu fonksiyon rollback YAPMAZ).
-//
-// ÖN KOŞUL : Açık bir transaction içinde çağrılmalıdır.
-//
-// DEBUG    : Satırlar kaydolmuyorsa:
-//              qDebug() << "quoteId" << quoteId << "satır" << lines.size();
-//            • quoteId == 0 ise çağıran taraftaki lastInsertId() boş dönmüştür
-//            • "FOREIGN KEY constraint failed" -> quoteId quotes tablosunda YOK
-//              (update() sırasında var olmayan bir teklif id'si verilmiş olabilir)
-//            Tek satırın hangisinde patladığını görmek için döngüye:
-//              qDebug() << l.sira << l.aciklama << q.lastError().text();
+// Bir teklifin tüm satırlarını quote_lines tablosuna yazar; hem add() hem
+// update() bunu kullanır. Açık bir transaction içinde çağrılmalıdır.
+//   q : INSERT döngünün DIŞINDA bir kez hazırlanır, her turda yalnızca
+//       bindValue yapılır
+// tutar, önceden hesaplanmış haliyle yazılır; veritabanı tarafında yeniden
+// hesaplanmaz. Hata durumunda false döner — geri alma çağıran tarafa aittir.
 bool RepoQuotes::insertLines(QSqlDatabase &db, qint64 quoteId, const QVector<QuoteLine> &lines,
                               QString *errorOut)
 {
@@ -140,44 +92,16 @@ bool RepoQuotes::insertLines(QSqlDatabase &db, qint64 quoteId, const QVector<Quo
 }
 
 
-// ═══ RepoQuotes::add() ════════════════════════════════════════════════════
-// NE YAPAR : Yeni teklifi BAŞLIK + TÜM SATIRLARI + NUMARA ATAMA ile birlikte
-//            TEK bir transaction içinde kaydeder. Başarılıysa quote.id ve
-//            quote.teklifNo doldurulur (parametre bu yüzden referanstır).
-//
-// ADIM ADIM (5 aşama — hata ayıklarken sırayla ilerleyin):
-//   [1] BEGIN IMMEDIATE
-//       Dönüş değeri KONTROL EDİLMİYOR (bu dosyadaki bilinen zayıf nokta).
-//   [2] nextQuoteNumberLocked() -> teklif no üretilir ve sayaç artırılır.
-//       Boş dönerse ROLLBACK + çık.                          [ÇIKIŞ 1]
-//       Numara üretimi AYNI transaction'da olduğu için, aşağıdaki adımlardan
-//       biri patlarsa sayaç da geri alınır — numara boşa harcanmaz.
-//   [3] quotes tablosuna başlık INSERT edilir.
-//       tarih QDate -> Qt::ISODate metni ("2026-08-25") olarak yazılır.
-//       Patlarsa ROLLBACK + çık.                             [ÇIKIŞ 2]
-//   [4] quoteId = lastInsertId(); insertLines() ile satırlar yazılır.
-//       Patlarsa ROLLBACK + çık.                             [ÇIKIŞ 3]
-//   [5] COMMIT. Ancak COMMIT'ten SONRA quote.id ve quote.teklifNo atanır —
-//       yani bu alanlar SADECE kalıcı olarak yazıldıysa dolar.
-//
-// DEBUG    : Kayıt olmuyorsa aşamaları işaretleyin:
-//              qDebug() << "[2] no:" << teklifNo;
-//              qDebug() << "[3]" << ins.lastError().text();
-//              qDebug() << "[4] id:" << quoteId;
-//            Sık görülen hatalar:
-//            • "FOREIGN KEY constraint failed" -> customerId geçersiz ya da 0.
-//              customers tablosunda o id yok. En sık sebep: müşteri seçilmemiş.
-//            • "UNIQUE constraint failed: quotes.teklif_no" -> numara üretimi
-//              transaction dışında çalışmış (bkz. nextQuoteNumberLocked ön koşulu)
-//            • "NOT NULL constraint failed: quotes.tarih" -> quote.tarih
-//              GEÇERSİZ bir QDate. toString(ISODate) boş string döndürmüştür.
-//              Kontrol:  qDebug() << quote.tarih.isValid();
-//
-// EKSİK    : araToplam / kdvTutari / genelToplam çağırandan OLDUĞU GİBİ alınır,
-//            satırlarla tutarlı mı diye BAKILMAZ. Arayüzde bir hata olursa
-//            veritabanına tutarsız teklif yazılır ve bir daha fark edilmez.
-//            Sağlamlaştırmak için burada Calculator::totals ile yeniden
-//            hesaplamak gerekir.
+// Yeni teklifi başlığı, tüm satırları ve numara atamasıyla birlikte TEK bir
+// transaction içinde kaydeder. Başarılıysa quote.id ve quote.teklifNo
+// doldurulur — parametre bu yüzden referanstır.
+//   teklifNo : numara üretimi de aynı transaction'ın parçasıdır; sonraki
+//              adımlardan biri başarısız olursa sayaç da geri alınır ve numara
+//              boşa harcanmaz
+//   quoteId  : başlık INSERT'inden dönen id; satırlar buna bağlanır
+// tarih, QDate'ten Qt::ISODate metnine ("2026-08-25") çevrilerek yazılır.
+// quote.id ve quote.teklifNo COMMIT'ten SONRA atanır, yani bu alanlar yalnızca
+// kayıt gerçekten kalıcı olduysa dolar.
 bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
 {
     QSqlQuery tx(db);
@@ -240,39 +164,11 @@ bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
 }
 
 
-// ═══ RepoQuotes::update() ═════════════════════════════════════════════════
-// NE YAPAR : Var olan teklifi günceller. Başlık alanları UPDATE edilir,
-//            SATIRLAR ise TAMAMEN SİLİNİP YENİDEN EKLENİR.
-//
-// NEDEN SİL-YENİDEN EKLE: "Hangi eski satır hangi yeni satırla eşleşiyor"
-//   sorusu hiç ortaya çıkmaz. Kullanıcı satır sildi, ekledi ya da sırayı
-//   değiştirdi — hiçbiri fark etmez. Basit ve her durumda doğru.
-//   YAN ETKİSİ: quote_lines.id değerleri her kaydetmede DEĞİŞİR. O id'lere
-//   dışarıdan referans veren bir kod yazmayın.
-//
-// ADIM ADIM:
-//   [1] BEGIN IMMEDIATE (dönüş değeri kontrol edilmiyor)
-//   [2] quotes UPDATE ... WHERE id = :id  (+ guncelleme damgası)
-//       Patlarsa ROLLBACK + çık.                             [ÇIKIŞ 1]
-//   [3] DELETE FROM quote_lines WHERE quote_id = :id
-//       Patlarsa ROLLBACK + çık.                             [ÇIKIŞ 2]
-//   [4] insertLines() ile yeni satırlar yazılır.
-//       Patlarsa ROLLBACK + çık.                             [ÇIKIŞ 3]
-//   [5] COMMIT
-//
-// ÖNEMLİ TUZAK — SESSİZ BAŞARISIZLIK:
-//   [2] adımı numRowsAffected() KONTROL ETMEZ. Var olmayan bir quote.id
-//   verirseniz UPDATE 0 satır etkiler, DELETE 0 satır siler ve akış devam eder.
-//   • Teklifin satırı VARSA [4] adımı FK ihlaliyle patlar (foreign_keys ON ise)
-//     ve doğru şekilde hata döner.
-//   • Ama teklifin HİÇ SATIRI YOKSA hiçbir şey patlamaz ve fonksiyon TRUE
-//     döner — hiçbir şey yazılmadığı halde "kaydedildi" sanılır.
-//   Teşhis:
-//              upd.exec(); qDebug() << "etkilenen:" << upd.numRowsAffected();
-//   0 görüyorsanız quote.id yanlış demektir.
-//
-// DEBUG    : Değişiklikler kayboluyorsa önce doğru id'yi güncellediğinizden
-//            emin olun:  qDebug() << quote.id << quote.satirlar.size();
+// Var olan bir teklifi günceller: başlık alanları UPDATE edilir, satırlar ise
+// silinip yeniden eklenir. Bu en basit doğru yoldur — "hangi eski satır hangi
+// yeni satırla eşleşiyor" belirsizliği hiç ortaya çıkmaz (kullanıcı satır
+// sildi, ekledi ya da sırayı değiştirdiyse fark etmez).
+// Yan etkisi: quote_lines.id değerleri her kaydetmede değişir.
 bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
 {
     QSqlQuery tx(db);
@@ -332,35 +228,12 @@ bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
 }
 
 
-// ═══ RepoQuotes::get() ════════════════════════════════════════════════════
-// NE YAPAR : Teklifi BAŞLIĞI + TÜM SATIRLARIYLA (sira'ya göre sıralı) okur.
-//            Bulunamazsa veya hata olursa std::nullopt.
-//
-// ADIM ADIM:
-//   [1] quotes tablosundan başlık okunur.
-//       exec() başarısız VEYA next() satır vermezse nullopt döner.
-//       DİKKAT: bu iki durum AYIRT EDİLMEZ. Hata metni boşsa
-//       "Teklif bulunamadı.", doluysa SQL hatası yazılır — yani mesaja
-//       bakarak hangisi olduğunu anlayabilirsiniz.        [ÇIKIŞ 1]
-//   [2] Alanlar Quote'a doldurulur:
-//       • *_toplam / *_tutari / birim_fiyat sütunları KURUŞ tam sayısıdır
-//         -> doğrudan Money(...)
-//       • tarih metinden QDate::fromString(..., Qt::ISODate) ile çözülür.
-//         GEÇERLİLİK KONTROL EDİLMEZ; bozuk bir metin sessizce geçersiz
-//         QDate üretir.  Kontrol:  qDebug() << quote.tarih.isValid();
-//   [3] quote_lines ayrı bir sorguyla ORDER BY sira ile okunur ve
-//       quote.satirlar'a doldurulur.
-//
-// ÖNEMLİ TUZAK — SESSİZ SATIR KAYBI:
-//   [3] adımı `if (lq.exec())` içine alınmış ama ELSE dalı YOK. Satır sorgusu
-//   başarısız olursa hata HİÇ BİLDİRİLMEZ; teklif 0 satırla döner ve
-//   kullanıcı teklifini boş görür.
-//   Teşhis için geçici olarak:
-//              if (!lq.exec()) qDebug() << "SATIR SORGUSU FAIL:" << lq.lastError().text();
-//              else qDebug() << "okunan satır:" << quote.satirlar.size();
-//   Teklif açıldığında tablo boşsa İLK bakılacak yer burasıdır — ikinci
-//   ihtimal, teklifin gerçekten satırsız kaydedilmiş olmasıdır:
-//              SELECT COUNT(*) FROM quote_lines WHERE quote_id = <id>;
+// id'ye ait teklifi başlığı ve tüm satırlarıyla birlikte döner; bulunamazsa
+// veya hata olursa std::nullopt.
+//   q  : başlık sorgusu. Tutar sütunları veritabanında kuruş tam sayısıdır,
+//        doğrudan Money(...) ile sarılır.
+//   lq : satır sorgusu. ORDER BY sira, satırların teklifteki sırasını korur.
+// tarih, metinden Qt::ISODate ile QDate'e çözülür.
 std::optional<Quote> RepoQuotes::get(QSqlDatabase &db, qint64 id, QString *errorOut)
 {
     QSqlQuery q(db);

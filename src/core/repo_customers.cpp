@@ -6,22 +6,9 @@
 namespace {
 
 
-// ═══ customerFromQuery() ══════════════════════════════════════════════════
-// NE YAPAR : Açık sorgunun MEVCUT satırını Customer nesnesine doldurur.
-//            Çağrılmadan önce q.next() true dönmüş olmalıdır.
-//
-// ADIM ADIM: Sütunlara ADIYLA erişilir. Alan adları DB sütunlarıyla birebir
-//            eşleşmez, C++ tarafı camelCase kullanır:
-//              vergi_dairesi -> vergiDairesi
-//              vergi_no      -> vergiNo
-//            aktif INTEGER'dan != 0 ile bool'a çevrilir.
-//
-// DEBUG    : Bir alan hep boş geliyorsa neredeyse her zaman sütun adı yanlış
-//            yazılmıştır (Qt uyarı basar ama program çökmez):
-//              qDebug() << q.record().fieldNames();
-//
-// EKSİK    : `olusturma` sütunu DB'de var ama Customer modelinde YOK, bu
-//            yüzden okunmuyor. İhtiyaç olursa modele eklenmeli.
+// Açık bir sorgunun MEVCUT satırını Customer nesnesine doldurur (çağrılmadan
+// önce q.next() true dönmüş olmalıdır). Sütunlara adıyla erişilir.
+// C++ tarafı camelCase kullanır: vergi_dairesi -> vergiDairesi, vergi_no -> vergiNo.
 Customer customerFromQuery(const QSqlQuery &q)
 {
     Customer c;
@@ -41,26 +28,9 @@ Customer customerFromQuery(const QSqlQuery &q)
 } // namespace
 
 
-// ═══ RepoCustomers::add() ═════════════════════════════════════════════════
-// NE YAPAR : Yeni müşteri ekler ve customer.id'yi DB'nin verdiği id ile
-//            doldurur (bu yüzden parametre referanstır).
-//
-// ADIM ADIM:
-//   1) INSERT hazırlanır. `olusturma` sütunu yazılmaz — DB'deki
-//      DEFAULT (datetime('now')) devreye girer.
-//   2) Tüm alanlar bind edilir; aktif bool -> 1/0.
-//   3) exec() başarısızsa ham hata metni döner.
-//      (RepoItems::add'deki gibi ÖZEL bir "zaten kayıtlı" mesajı YOK, çünkü
-//       customers tablosunda UNIQUE kısıt yoktur — aynı unvanla iki müşteri
-//       eklenebilir. Mükerrer kayıt uyarısı istiyorsanız burada kontrol
-//       etmeniz gerekir.)
-//   4) customer.id = lastInsertId()
-//
-// DEBUG    : Ekleme başarısızsa:
-//              qDebug() << q.lastError().text() << q.boundValues();
-//            En sık sebep: unvan boş -> "NOT NULL constraint failed:
-//            customers.unvan" (unvan şemada NOT NULL'dur, diğer alanlar değil).
-//            Başarılıysa:  qDebug() << customer.id;   0 ise INSERT olmamıştır.
+// Yeni müşteri ekler. Başarılıysa customer.id, veritabanının verdiği id ile
+// doldurulur — parametre bu yüzden referanstır.
+// olusturma sütunu INSERT'e konmaz; şemadaki DEFAULT (datetime('now')) devreye girer.
 bool RepoCustomers::add(QSqlDatabase &db, Customer &customer, QString *errorOut)
 {
     QSqlQuery q(db);
@@ -88,30 +58,9 @@ bool RepoCustomers::add(QSqlDatabase &db, Customer &customer, QString *errorOut)
 }
 
 
-// ═══ RepoCustomers::listAll() ═════════════════════════════════════════════
-// NE YAPAR : Müşterileri okur. includeInactive false ise (varsayılan) pasif
-//            müşteriler listeye GİRMEZ. PageQuote'un müşteri açılır listesini
-//            besleyen fonksiyondur.
-//
-// ADIM ADIM: RepoItems::listAll ile aynı kalıp — SQL seçilir, exec edilir,
-//            while(q.next()) ile Customer'lara çevrilir.
-//
-// TUZAK — GERÇEK KULLANICI ETKİSİ:
-//   PageQuote::currentCustomer() müşteriyi BU LİSTEDE arar. Liste varsayılan
-//   olarak pasifleri dışladığı için, PASİFE ALINMIŞ bir müşterinin ESKİ
-//   TEKLİFİNİ açtığınızda müşteri alanı BOŞ gelir ve baskıda antet müşterisiz
-//   çıkar. Böyle bir durumda:
-//              qDebug() << quote.customerId << m_customers.size();
-//   customerId dolu ama listede yoksa teşhis budur. Kalıcı çözüm
-//   RepoCustomers::get(id) eklemektir (henüz yok).
-//
-// SIRALAMA TUZAĞI: ORDER BY unvan da BINARY collation kullanır — Çelik A.Ş.,
-//   İnşaat Ltd. gibi unvanlar Z'DEN SONRAYA düşer. (Ayrıntı için
-//   RepoItems::listAll üzerindeki nota bakın.)
-//
-// SESSİZ HATA: exec() başarısız olursa boş vektör döner, errorOut yok.
-//   Müşteri listesi boş görünüyorsa geçici olarak:
-//              if (!q.exec(sql)) qDebug() << q.lastError().text();
+// Müşterileri unvana göre alfabetik sıralı döner; teklif ekranındaki müşteri
+// açılır listesini besler.
+//   includeInactive : false ise (varsayılan) pasif müşteriler listeye girmez
 QVector<Customer> RepoCustomers::listAll(QSqlDatabase &db, bool includeInactive)
 {
     QVector<Customer> sonuc;

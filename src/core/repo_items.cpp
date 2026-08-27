@@ -8,28 +8,13 @@
 namespace {
 
 
-// ═══ itemFromQuery() ══════════════════════════════════════════════════════
-// NE YAPAR : Açık bir sorgunun MEVCUT satırını Item nesnesine doldurur.
-//            Çağrılmadan önce q.next() true dönmüş olmalıdır.
-//
-// ADIM ADIM (her alan için dikkat edilecekler):
-//   1) Sütunlara ADIYLA erişilir (q.value("kod")). İNDEKSLE değil — böylece
-//      SELECT'teki sütun sırası değişse bile kod bozulmaz.
-//      TUZAK: ad yanlış yazılırsa Qt uyarı basar ve GEÇERSİZ QVariant döner;
-//             alan sessizce boş/0 kalır. Boş gelen bir alan varsa İLK
-//             şüpheli budur.
-//   2) varsayilan_fiyat DB'de KURUŞ tam sayısıdır -> doğrudan Money(...)
-//   3) category_id NULL olabilir -> isNull() ile 0'a çevrilir
-//      (0 = "kategori yok"; geçerli rowid'ler 1'den başladığı için güvenli).
-//   4) aktif INTEGER -> != 0 ile bool
-//   5) guncelleme: SQLite'ın datetime('now') çıktısı "yyyy-MM-dd HH:mm:ss"
-//      biçimindedir; Qt::ISODate'in beklediği 'T' ayracı YOKTUR. Bu yüzden
-//      biçim ELLE verilir. Verilmezse QDateTime sessizce GEÇERSİZ olur.
-//
-// DEBUG    : Bir alan hep boş geliyorsa sorgunun gerçekten o sütunu getirip
-//            getirmediğine bakın:
-//              qDebug() << q.record().count() << q.record().fieldNames();
-//            guncelleme geçersizse:  qDebug() << it.guncelleme.isValid();
+// Açık bir sorgunun MEVCUT satırını Item nesnesine doldurur (çağrılmadan önce
+// q.next() true dönmüş olmalıdır).
+// Sütunlara indeksle değil ADIYLA erişilir; böylece SELECT'teki sütun sırası
+// değişse de kod bozulmaz.
+//   catVar : category_id NULL olabilir. NULL ise 0'a çevrilir (0 = kategori yok).
+// guncelleme için biçim elle verilir: SQLite'ın datetime('now') çıktısı
+// "yyyy-MM-dd HH:mm:ss"tir, Qt::ISODate'in beklediği 'T' ayracını içermez.
 Item itemFromQuery(const QSqlQuery &q)
 {
     Item it;
@@ -52,23 +37,11 @@ Item itemFromQuery(const QSqlQuery &q)
 }
 
 
-// ═══ isUniqueViolation() ══════════════════════════════════════════════════
-// NE YAPAR : Hatanın "aynı kod zaten var" (UNIQUE ihlali) olup olmadığını
-//            anlar; böylece kullanıcıya ham SQLite metni yerine anlaşılır bir
-//            mesaj gösterilebilir.
-//
-// NASIL    : Hata METNİNDE "UNIQUE" geçiyor mu diye bakar. SQLite tipik olarak
-//            "UNIQUE constraint failed: items.kod" yazar.
-//
-// NEDEN metin: Qt'nin QSQLITE sürücüsünde native hata kodu sürümden sürüme
-//            farklı yorumlanabiliyor; SQLite'ın sabit İNGİLİZCE metni daha
-//            güvenilir çıkıyor.
-//
-// DEBUG    : Kullanıcıya "Bu kod zaten kayıtlı" yerine ham SQL hatası
-//            gösteriliyorsa buradan başlayın:
-//              qDebug() << err.text() << err.nativeErrorCode() << err.type();
-//            Daha sağlamı nativeErrorCode() == "2067" (SQLITE_CONSTRAINT_UNIQUE)
-//            kontrolüdür — metne bağlı kalmaz.
+// Hatanın "aynı kod zaten var" (UNIQUE ihlali) olup olmadığını anlar; böylece
+// kullanıcıya ham SQLite metni yerine anlaşılır bir mesaj gösterilebilir.
+// Hata METNİNDE "UNIQUE" aranır ("UNIQUE constraint failed: items.kod" gibi):
+// Qt'nin QSQLITE sürücüsünde native hata kodu sürümden sürüme farklı
+// yorumlanabildiği için sabit İngilizce metin daha güvenilir çıkıyor.
 bool isUniqueViolation(const QSqlError &err)
 {
     // Qt'nin QSQLITE sürücüsünde native error code sürümden sürüme farklı
@@ -80,30 +53,12 @@ bool isUniqueViolation(const QSqlError &err)
 } // namespace
 
 
-// ═══ RepoItems::add() ═════════════════════════════════════════════════════
-// NE YAPAR : Katalog'a yeni kalem ekler. Başarılıysa item.id'yi DB'nin verdiği
-//            id ile DOLDURUR (bu yüzden item referansla alınır).
-//
-// ADIM ADIM:
-//   1) INSERT hazırlanır. guncelleme sütunu SQL tarafında datetime('now')
-//      ile doldurulur — C++ saatine güvenilmez, tüm satırlar aynı kaynaktan.
-//   2) Değerler bind edilir. ÖZEL DURUM: categoryId == 0 ise DB'ye NULL yazılır
-//      (QVariant() boş varyant = SQL NULL). 0 yazmak FK ihlali olurdu.
-//   3) exec() başarısızsa: UNIQUE ihlali mi diye bakılır ->
-//      "Bu kod zaten kayıtlı: X" veya ham hata metni.
-//   4) item.id = lastInsertId()
-//
-// DEBUG    : Ekleme başarısızsa önce hangi dalda olduğunuza bakın:
-//              qDebug() << q.lastError().text() << q.executedQuery();
-//            • "UNIQUE constraint failed: items.kod" -> kod tekrar ediyor
-//            • "FOREIGN KEY constraint failed"       -> categoryId var olmayan
-//              bir kategoriyi gösteriyor (2. adımdaki NULL dönüşümüne bakın)
-//            • "NOT NULL constraint failed"          -> kod/ad/birim boş
-//            Başarılıysa: qDebug() << item.id;  0 ise INSERT çalışmamıştır.
-//
-// PERFORMANS: Her çağrıda YENİ bir QSqlQuery + prepare() yapılır. Tek tek
-//            ekleme için sorun değil; ama importCsv binlerce kez çağırdığı
-//            için orada belirgin bir maliyet oluşturur.
+// Katalog'a yeni kalem ekler. Başarılıysa item.id, veritabanının verdiği id
+// ile doldurulur — parametre bu yüzden referanstır.
+//   :kategori  : categoryId 0 ise DB'ye NULL yazılır (boş QVariant = SQL NULL);
+//                0 yazmak foreign key ihlali olurdu
+//   guncelleme : C++ saatine güvenilmez, SQL tarafında datetime('now') ile yazılır
+// kod alanı UNIQUE'tir; çakışma durumunda anlaşılır bir mesaj üretilir.
 bool RepoItems::add(QSqlDatabase &db, Item &item, QString *errorOut)
 {
     QSqlQuery q(db);
@@ -131,21 +86,8 @@ bool RepoItems::add(QSqlDatabase &db, Item &item, QString *errorOut)
 }
 
 
-// ═══ RepoItems::update() ══════════════════════════════════════════════════
-// NE YAPAR : Var olan kalemi id'sine göre TAMAMEN günceller (kısmi güncelleme
-//            yok — tüm alanlar yazılır).
-//
-// ADIM ADIM: add() ile aynı bind mantığı + WHERE id = :id.
-//            categoryId == 0 -> NULL dönüşümü burada da geçerli.
-//
-// DEBUG / ÖNEMLİ TUZAK:
-//   Bu fonksiyon ETKİLENEN SATIR SAYISINI KONTROL ETMEZ. Var olmayan bir id
-//   verirseniz SQL başarıyla çalışır, 0 satır günceller ve fonksiyon TRUE
-//   döner. Çağıran taraf kaydettiğini sanır.
-//   Bunu test etmek için:
-//              q.exec(); qDebug() << "etkilenen satır:" << q.numRowsAffected();
-//   0 görüyorsanız ya item.id yanlış, ya kayıt silinmiş demektir.
-//   Kalıcı düzeltme: numRowsAffected() == 0 durumunda "Kayıt bulunamadı" hatası.
+// Var olan bir kalemi id'sine göre tamamen günceller (kısmi güncelleme yok,
+// tüm alanlar yazılır). Bind mantığı add() ile aynıdır, üzerine WHERE id = :id.
 bool RepoItems::update(QSqlDatabase &db, const Item &item, QString *errorOut)
 {
     QSqlQuery q(db);
@@ -172,23 +114,10 @@ bool RepoItems::update(QSqlDatabase &db, const Item &item, QString *errorOut)
 }
 
 
-// ═══ RepoItems::setActive() ═══════════════════════════════════════════════
-// NE YAPAR : Kalemi SİLMEZ, sadece aktif/pasif yapar.
-//
-// NEDEN SİLME YOK: Geçmiş tekliflerdeki satırlar fiyatı/adı KOPYALADIĞI için
-//   silme onları teknik olarak bozmaz — ama katalogdan aniden kaybolması
-//   kullanıcıyı yanıltır. Programda hiçbir yerde items üzerinde DELETE yoktur.
-//
-// ADIM ADIM: tek bir UPDATE; aktif alanı ve guncelleme damgası yazılır.
-//
-// DEBUG    : Pasife aldığınız kalem hâlâ aramada çıkıyorsa sıra şu:
-//            1) DB'de gerçekten değişti mi:  SELECT aktif FROM items WHERE id=?
-//            2) Değiştiyse arayüz katalogu yenilemedi demektir
-//               (PageQuote::reloadCatalog çağrılmalı) — ItemSearch katalogun
-//               BELLEKTEKİ KOPYASI üzerinde arar, DB'yi tekrar okumaz.
-//
-// TUZAK    : update() ile aynı — numRowsAffected() kontrol edilmiyor, olmayan
-//            id sessizce "başarılı" sayılıyor.
+// Kalemi SİLMEZ, sadece aktif/pasif durumunu değiştirir. Programın hiçbir
+// yerinde items üzerinde gerçek DELETE çağrılmaz: geçmiş tekliflerdeki satırlar
+// fiyatı kopyaladığı için silme onları bozmaz, ama kalemin katalogdan
+// kaybolması kullanıcıyı yanıltır.
 bool RepoItems::setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *errorOut)
 {
     QSqlQuery q(db);
@@ -205,32 +134,9 @@ bool RepoItems::setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *erro
 }
 
 
-// ═══ RepoItems::listAll() ═════════════════════════════════════════════════
-// NE YAPAR : Katalogdaki kalemleri okur. includeInactive false ise (varsayılan)
-//            pasif kalemler LİSTEYE GİRMEZ.
-//
-// ADIM ADIM:
-//   1) includeInactive'e göre iki SQL'den biri seçilir (WHERE aktif=1 var/yok).
-//   2) exec() başarısızsa BOŞ VEKTÖR döner.
-//   3) while(q.next()) döngüsünde her satır itemFromQuery ile Item'a çevrilir.
-//
-// ÖNEMLİ TUZAK — SESSİZ HATA:
-//   2. adımda hata YUTULUR. errorOut parametresi bile yok. Yani
-//   "katalog gerçekten boş" ile "SQL patladı" AYIRT EDİLEMEZ.
-//   Arama kutusu hiç sonuç vermiyorsa buraya geçici bir çıktı koyun:
-//              if (!q.exec(sql)) qDebug() << "listAll FAIL:" << q.lastError().text();
-//   En sık sebep: bağlantı kapanmış ya da migration hiç çalışmamış
-//   ("no such table: items").
-//
-// SIRALAMA TUZAĞI: ORDER BY ad, SQLite'ın varsayılan BINARY (UTF-8 bayt)
-//   collation'ını kullanır. Türkçede YANLIŞ sonuç verir — Ç, ç, İ, ı, Ş, Ğ,
-//   Ü, Ö ile başlayan kalemler Z'DEN SONRAYA düşer:
-//     Ahşap, Alçıpan, Beton, Zeytin, Çimento, çıta, İşçilik, ısı yalıtımı
-//   Doğrusu için sıralamayı SQL'de değil, C++ tarafında
-//   QCollator(QLocale(QLocale::Turkish)) ile yapmak gerekir.
-//
-// PERFORMANS: SELECT * tüm sütunları çeker ve TÜM katalog belleğe alınır.
-//   ~50.000 kaleme kadar sorun değil; ötesinde FTS5 + sayfalama gerekir.
+// Katalogdaki kalemleri ada göre alfabetik sıralı döner.
+//   includeInactive : false ise (varsayılan) pasif kalemler listeye girmez
+// Her satır itemFromQuery() ile Item'a çevrilir.
 QVector<Item> RepoItems::listAll(QSqlDatabase &db, bool includeInactive)
 {
     QVector<Item> sonuc;
@@ -246,19 +152,8 @@ QVector<Item> RepoItems::listAll(QSqlDatabase &db, bool includeInactive)
 }
 
 
-// ═══ RepoItems::categoryNameMap() ═════════════════════════════════════════
-// NE YAPAR : categories tablosunun tamamını id -> ad sözlüğü olarak yükler.
-//            CSV dışa aktarımında her kalem için ayrı sorgu atmamak için
-//            (N+1 sorgu probleminden kaçınma).
-//
-// ADIM ADIM: tek SELECT, sonuçlar QHash'e doldurulur. Hata olursa BOŞ HARİTA
-//            döner — yine sessizdir.
-//
-// DEBUG    : CSV çıktısında kategori sütunu boş geliyorsa:
-//              qDebug() << harita.size() << harita;
-//            • 0 ise sorgu patlamış ya da hiç kategori yok
-//            • Dolu ama çıktı boşsa kalemlerin categoryId'si 0'dır
-//              (yani gerçekten kategorisizler)
+// categories tablosunun tamamını id -> ad sözlüğü olarak yükler. CSV dışa
+// aktarımında her kalem için ayrı sorgu atmamak için tek seferde alınır.
 QHash<qint64, QString> RepoItems::categoryNameMap(QSqlDatabase &db)
 {
     QHash<qint64, QString> harita;
@@ -271,32 +166,12 @@ QHash<qint64, QString> RepoItems::categoryNameMap(QSqlDatabase &db)
 }
 
 
-// ═══ RepoItems::categoryIdForName() ═══════════════════════════════════════
-// NE YAPAR : Ada göre kategori bulur; YOKSA OLUŞTURUR ("get or create").
-//            CSV içe aktarımında kullanılır.
-//
-// DÖNÜŞ DEĞERİ ÜÇ ANLAMLIDIR — karıştırmayın:
-//    > 0  bulunan ya da yeni oluşturulan kategori id'si
-//    == 0 ad boş -> "kategorisiz" (HATA DEĞİL)
-//    < 0  (-1) gerçek hata; çağıran taraf ROLLBACK etmeli
-//
-// ADIM ADIM:
-//   1) ad.trimmed().isEmpty() ise 0 döner.
-//   2) SELECT id FROM categories WHERE ad = :ad
-//   3) Bulunursa id döner.
-//   4) Bulunamazsa INSERT edilir; başarısızsa -1.
-//
-// TUZAK 1 (GERÇEK HATA): 1. adımda trimmed() SADECE boşluk kontrolü için
-//   kullanılıyor; 2. ve 4. adımlar ad'ın HAM halini kullanıyor. Bu yüzden
-//   " Boya" ve "Boya" İKİ AYRI kategori olur. CSV'de fazladan boşluk varsa
-//   kategoriler ikizlenir.  Kontrol:  qDebug() << "[" << ad << "]";
-//
-// TUZAK 2: Karşılaştırma '=' ile yapılıyor, yani BÜYÜK/KÜÇÜK HARF DUYARLI.
-//   "boya" ve "Boya" da ayrı kategoriler olur.
-//
-// TUZAK 3: 2. adımda exec() başarısız olursa (bul.exec() false) kod bunu
-//   "bulunamadı" sayıp INSERT'e geçer. Gerçek bir DB hatası, yanlışlıkla
-//   yeni kayıt denemesine dönüşür.
+// Ada göre kategori bulur, yoksa oluşturur. CSV içe aktarımında kullanılır,
+// çünkü CSV kategoriyi id ile değil ADIYLA taşır.
+// Dönüş değeri üç anlamlıdır:
+//   > 0   bulunan ya da yeni oluşturulan kategori id'si
+//   == 0  ad boş -> "kategorisiz" (hata değildir)
+//   -1    gerçek hata; çağıran taraf işlemi geri almalıdır
 qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString *errorOut)
 {
     if (ad.trimmed().isEmpty())
@@ -320,40 +195,13 @@ qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString
 }
 
 
-// ═══ RepoItems::importCsv() ═══════════════════════════════════════════════
-// NE YAPAR : CSV metnini katalog'a aktarır. "HEPSİ YA DA HİÇBİRİ" garantisi:
-//            tek satır bile başarısız olursa HİÇBİR satır eklenmez.
-//
-// İKİ AŞAMALI TASARIM (sıra kritik):
-//   AŞAMA 1 — DOĞRULA (DB'ye hiç dokunmadan)
-//     1) csvSatirlariniAyristir(): biçim/fiyat hatası varsa BURADA çıkılır.
-//        DB'ye tek bir yazma bile yapılmamış olur.        [ÇIKIŞ 1]
-//     2) Sonuç boşsa "İçe aktarılacak satır bulunamadı."  [ÇIKIŞ 2]
-//   AŞAMA 2 — YAZ (tek transaction içinde)
-//     3) BEGIN IMMEDIATE  (dönüş değeri KONTROL EDİLMİYOR!)
-//     4) Her satır için:
-//        a) categoryIdForName(): kategori yoksa oluşturulur.
-//           -1 dönerse ROLLBACK + çık.                    [ÇIKIŞ 3]
-//        b) add(): kod çakışırsa ROLLBACK + çık. Hata mesajının başına
-//           hangi kodun patladığı eklenir.                [ÇIKIŞ 4]
-//     5) COMMIT
-//
-// DEBUG    : İçe aktarma başarısızsa hata mesajı zaten satır numarasını ya da
-//            kodu içerir. Yine de takılırsanız:
-//              qDebug() << "ayrıştırılan satır:" << satirlar.size();
-//            Döngü içinde:  qDebug() << s.kod << s.kategoriAdi << catId;
-//            İşlem "başarılı" göründüğü halde tablo boşsa 5. adımdaki COMMIT'e
-//            bakın — BEGIN başarısız olduysa her şey otomatik commit edilmiş
-//            ya da kaybolmuş olabilir.
-//
-// TUZAK    : 3. adımdaki BEGIN'in sonucu okunmuyor. Bu fonksiyonu DIŞARIDAN
-//            açılmış bir transaction içine koyarsanız BEGIN sessizce başarısız
-//            olur ve 4a/4b'deki ROLLBACK DIŞTAKİ transaction'ı geri alarak
-//            ilgisiz verileri siler.
-//
-// PERFORMANS: add() her satırda yeni QSqlQuery + prepare() yapar. 5.000 satırlık
-//            bir CSV = 5.000 prepare. Döngü dışında bir kez hazırlanıp sadece
-//            bind edilse kat kat hızlanır.
+// CSV metnini katalog'a aktarır. Önce TÜM satırlar doğrulanır, sonra tek bir
+// transaction içinde eklenir: bozuk bir satır ya da çakışan bir kod varsa tek
+// satır bile eklenmeden hepsi geri alınır.
+//   satirlar : doğrulanmış CSV satırları. Bu noktaya kadar veritabanına hiç
+//              dokunulmamıştır.
+//   catId    : satırın kategori id'si; kategori adı katalogda yoksa
+//              categoryIdForName() tarafından otomatik oluşturulur
 bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *errorOut)
 {
     QString parseErr;
@@ -410,22 +258,9 @@ bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *
 }
 
 
-// ═══ RepoItems::exportCsv() ═══════════════════════════════════════════════
-// NE YAPAR : TÜM kalemleri (pasifler DAHİL) CSV metnine döker.
-//
-// ADIM ADIM:
-//   1) db.isOpen() kontrolü -> kapalıysa hata + boş metin.
-//      (listAll hatayı yutacağı için bu ön kontrol tek erken uyarıdır.)
-//   2) listAll(includeInactive = TRUE) -> pasifler de dışa aktarılır ki
-//      yedek/geri yükleme tam olsun.
-//   3) categoryNameMap() ile id -> ad sözlüğü alınır.
-//   4) csvOlustur() metni üretir.
-//
-// DEBUG    : Boş metin dönüyorsa sırayla bakın:
-//              qDebug() << db.isOpen() << kalemler.size() << kategoriler.size();
-//            • isOpen false  -> bağlantı kapanmış (1. adımda çıkıldı)
-//            • kalemler 0    -> listAll boş döndü; hata yuttuğunu unutmayın,
-//                               tabloyu doğrudan sorgulayıp doğrulayın
+// Aktif + pasif TÜM kalemleri CSV metnine döker. Pasifler de dışa aktarılır ki
+// dosya tam bir yedek olsun.
+//   kategoriler : id -> ad sözlüğü; kalem başına sorgu atılmasın diye önceden alınır
 QString RepoItems::exportCsv(QSqlDatabase &db, QString *errorOut)
 {
     if (!db.isOpen()) {

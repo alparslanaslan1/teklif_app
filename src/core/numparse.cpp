@@ -3,33 +3,16 @@
 #include <QRegularExpression>
 
 
-// ═══ parseTurkishNumber() ═════════════════════════════════════════════════
-// NE YAPAR : Türkçe biçimli MİKTAR metnini double'a çevirir ("0,333" -> 0.333).
-//            Money::fromString ile aynı dilbilgisi, tek farkı 1-4 ondalık
-//            haneye izin vermesi ve kuruş yerine düz double döndürmesi.
-//
-// ADIM ADIM (hata ayıklarken bu sırayı takip edin):
-//   1) trimmed(); boşsa nullopt.                              [ÇIKIŞ 1]
-//   2) Regex eşleşmesi. Uymazsa nullopt.                      [ÇIKIŞ 2]
-//      Buraya düşmenin en sık sebebi kullanıcının NOKTA ile ondalık
-//      yazmasıdır ("0.5"). Bu KASITLI olarak reddedilir; nokta yalnızca
-//      binlik ayraçtır.
-//   3) tamKisim = captured(1), içindeki '.' karakterleri silinir.
-//   4) ondalikKisim = captured(2), ',' silinir.
-//   5) İkisi ARADA NOKTA ile birleştirilir -> "1234.333". Bu artık
-//      C/İngiliz biçimidir; QString::toDouble bunu bekler.
-//      (ondalık boşsa "0" konur -> "1234.0")
-//   6) toDouble; başarısızsa nullopt.                         [ÇIKIŞ 3]
-//   7) Metin '-' ile başlıyorsa sonuç negatiflenir (regex grubu eksiyi almaz).
-//
-// DEBUG    : 5. adımdan sonra `birlesik` değerini bastırmak neredeyse her
-//            sorunu gösterir:  qDebug() << metin << "->" << birlesik;
-//            "1.234,5" için beklenen: "1234.5"
-//            Eğer "1.234.5" görüyorsanız 3. adımdaki nokta temizliği çalışmamıştır.
-//
-// NOT      : Bu fonksiyon LOCALE'DEN BAĞIMSIZDIR. QLocale::toDouble kullanmak
-//            işletim sistemi diline göre farklı davranırdı; burada davranış
-//            her makinede aynıdır.
+// Türkçe biçimli miktar metnini double'a çevirir ("0,333" -> 0.333).
+// Money::fromString ile aynı dilbilgisi kuralları; farkı 1-4 ondalık haneye
+// izin vermesi ve kuruş yerine düz double döndürmesi (miktarlar kesirli
+// olabilir: 0,333 m²).
+//   metin        : boşlukları kırpılmış girdi
+//   re           : nokta binlik, virgül ondalık kuralını uygulayan desen
+//   tamKisim     : binlik noktaları silinmiş tam kısım
+//   ondalikKisim : virgülü silinmiş ondalık kısım
+//   birlesik     : "1234.333" — araya NOKTA konur, çünkü QString::toDouble
+//                  C biçimini (nokta ondalık) bekler
 std::optional<double> parseTurkishNumber(const QString &metinHam)
 {
     const QString metin = metinHam.trimmed();
