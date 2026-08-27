@@ -1,0 +1,38 @@
+# Derleme çıktıları
+build/
+build-*/
+out/
+cmake-build-*/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+compile_commands.json
+
+# Qt
+*.pro.user
+*.pro.user.*
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.moc
+
+# Paketleme / dağıtım
+dist/
+*.zip
+*.exe
+*.dll
+
+# Veritabanı ve yedekleri (asla commit edilmez)
+*.db
+*.db-wal
+*.db-shm
+*.db.bak-*
+
+# İşletim sistemi / editör
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

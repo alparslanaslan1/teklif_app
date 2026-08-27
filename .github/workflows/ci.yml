@@ -1,0 +1,53 @@
+# Her push ve PR'da derler + testleri çalıştırır.
+# Amaç: "derlenmiyor" ya da "test kırık" durumunun günlerce fark edilmeden
+# kalmaması. Sürüm/paketleme işi burada YOK, o release.yml'de.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false   # Windows kırıksa Linux sonucunu da görmek isteriz
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Qt kurulumu
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.6.*'
+          modules: ''            # Core/Gui/Widgets/Network/Sql/Test/PrintSupport zaten Qt Base içinde
+          cache: true            # sonraki çalışmalarda Qt indirmesini atlar
+
+      # Linux'ta Qt'nin offscreen platform eklentisinin ihtiyaç duyduğu sistem
+      # kütüphaneleri runner imajında hazır gelmiyor.
+      - name: Linux bağımlılıkları
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-x11-0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-cursor0
+
+      - name: Yapılandır
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Derle
+        run: cmake --build build --config Release --parallel
+
+      # QT_QPA_PLATFORM=offscreen: UI testleri gerçek bir ekran olmadan çalışsın.
+      # tests/CMakeLists.txt bunu test bazında da veriyor, burada garantiye alıyoruz.
+      - name: Testler
+        working-directory: build
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --output-on-failure --build-config Release

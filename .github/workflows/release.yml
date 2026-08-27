@@ -1,0 +1,88 @@
+# "v0.2.0" gibi bir tag push edildiğinde çalışır:
+#   1. Windows'ta Release derler, testleri koşar
+#   2. windeployqt ile Qt DLL'lerini yanına toplar (kullanıcıda Qt kurulu değil)
+#   3. ZIP'ler, SHA-256'sını hesaplar
+#   4. latest.json üretir  <-- programdaki updater bu dosyaya bakar
+#   5. İkisini de GitHub Release'e yükler
+#
+# Yayınlama akışı:
+#   CMakeLists.txt'de project(... VERSION 0.2.0) güncelle -> commit ->
+#   git tag v0.2.0 && git push --tags
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # Release oluşturup dosya yükleyebilmek için
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tag "v0.2.0" -> sürüm "0.2.0". Sürümün tek kaynağı tag'dir; CMake'e
+      # -DTEKLIF_VERSION ile geçilir ve version.h oradan üretilir.
+      - name: Sürümü tag'den al
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.6.*'
+          cache: true
+
+      - name: Yapılandır ve derle
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTEKLIF_VERSION=${{ steps.ver.outputs.version }}
+          cmake --build build --config Release --parallel
+
+      - name: Testler
+        working-directory: build
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --output-on-failure --build-config Release
+
+      # windeployqt, exe'nin yanına gereken tüm Qt DLL'lerini + eklentileri
+      # (sqlite sürücüsü, platform eklentisi, yazdırma) kopyalar. Bu adım
+      # olmadan program kullanıcının makinesinde açılmaz.
+      - name: Paketle
+        shell: pwsh
+        run: |
+          $dist = "dist/TeklifApp"
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          Copy-Item build/Release/teklif_app.exe $dist/
+          windeployqt --release --no-translations --no-opengl-sw $dist/teklif_app.exe
+          Compress-Archive -Path "$dist/*" -DestinationPath "teklif-${{ steps.ver.outputs.version }}-win64.zip"
+
+      # latest.json: updater'ın okuduğu manifest. sha256 burada hesaplanır ki
+      # kullanıcı indirdiği paketin bozulmadığını doğrulayabilsin.
+      - name: latest.json üret
+        shell: pwsh
+        run: |
+          $ver  = "${{ steps.ver.outputs.version }}"
+          $zip  = "teklif-$ver-win64.zip"
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          $url  = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$zip"
+          @{
+            version    = $ver
+            minVersion = ""
+            url        = $url
+            sha256     = $hash
+            notes      = "Sürüm $ver"
+          } | ConvertTo-Json | Set-Content -Path latest.json -Encoding utf8
+          Get-Content latest.json
+
+      # latest.json HER yayında aynı "latest" tag'ine yüklenir; böylece
+      # updater'ın baktığı adres sabit kalır:
+      #   https://github.com/<kullanici>/<repo>/releases/latest/download/latest.json
+      - name: Release'e yükle
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            teklif-${{ steps.ver.outputs.version }}-win64.zip
+            latest.json

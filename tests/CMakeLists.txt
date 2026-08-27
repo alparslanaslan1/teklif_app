@@ -28,6 +28,15 @@ function(add_teklif_print_test name)
     set_tests_properties(${name} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endfunction()
 
+# update testleri teklif_update'e (Network içerir) bağlanır. Ağa HİÇ çıkmazlar:
+# sürüm karşılaştırma, manifest ayrıştırma ve özet doğrulama saf mantıktır,
+# gerçek indirme testi CI'da anlamlı olmaz ve kırılgan olur.
+function(add_teklif_update_test name)
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} PRIVATE teklif_update Qt6::Test)
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
 add_teklif_test(test_money)
 add_teklif_test(test_migration)
 add_teklif_test(test_calculator)
@@ -43,6 +52,8 @@ add_teklif_ui_test(test_item_search)
 add_teklif_ui_test(test_dlg_line_entry)
 add_teklif_ui_test(test_quote_table_view)
 add_teklif_ui_test(test_page_quote)
+
+add_teklif_update_test(test_updater)
 
 add_teklif_print_test(test_document_layout)
 add_teklif_print_test(test_print_service)

@@ -1,0 +1,14 @@
+#pragma once
+
+// Bu dosya CMake tarafından version.h.in'den ÜRETİLİR — elle düzenlemeyin.
+// Sürümün tek doğruluk kaynağı CMakeLists.txt'deki project(... VERSION ...)
+// satırıdır; CI, git tag'inden (v0.2.0) gelen değeri -DTEKLIF_VERSION ile geçer.
+
+// "0.2.0" biçiminde, updater'ın sunucudaki latest.json ile karşılaştırdığı sürüm.
+#define APP_VERSION "@TEKLIF_VERSION@"
+
+// Hangi commit'ten derlendiği — hata bildiriminde işe yarar. Git yoksa "bilinmiyor".
+#define APP_GIT_SHA "@TEKLIF_GIT_SHA@"
+
+// Derleme tarihi (UTC, ISO 8601).
+#define APP_BUILD_DATE "@TEKLIF_BUILD_DATE@"

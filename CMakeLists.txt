@@ -6,8 +6,39 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 # Part 4'te Widgets girdi (teklif ekranı). Part 5'te PrintSupport giriyor
-# (baskı/PDF). Network (Part 8) hâlâ ilgili parçasında eklenecek.
-find_package(Qt6 REQUIRED COMPONENTS Core Sql Widgets PrintSupport)
+# (baskı/PDF). Network otomatik güncelleme (src/update) için eklendi.
+find_package(Qt6 REQUIRED COMPONENTS Core Sql Widgets PrintSupport Network)
+
+# ---------------------------------------------------------------------------
+# Sürüm bilgisi: tek doğruluk kaynağı yukarıdaki project(... VERSION ...).
+# CI, git tag'inden (v0.2.0) gelen değeri -DTEKLIF_VERSION=0.2.0 ile geçer;
+# elle derlerken bu değer verilmezse project() sürümü kullanılır.
+# Üretilen version.h build klasörüne yazılır, repoya girmez.
+# ---------------------------------------------------------------------------
+set(TEKLIF_VERSION "${PROJECT_VERSION}" CACHE STRING "Yayınlanan sürüm numarası")
+
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        OUTPUT_VARIABLE TEKLIF_GIT_SHA
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+endif()
+if(NOT TEKLIF_GIT_SHA)
+    set(TEKLIF_GIT_SHA "bilinmiyor")
+endif()
+
+string(TIMESTAMP TEKLIF_BUILD_DATE "%Y-%m-%dT%H:%M:%SZ" UTC)
+
+configure_file(
+    "${CMAKE_SOURCE_DIR}/src/core/version.h.in"
+    "${CMAKE_BINARY_DIR}/generated/core/version.h"
+    @ONLY)
+
+message(STATUS "TeklifApp sürüm ${TEKLIF_VERSION} (${TEKLIF_GIT_SHA})")
+
 
 # ---------------------------------------------------------------------------
 # core: iş mantığı. Qt Widgets'e bağımlı DEĞİL — arayüz açmadan test edilebilir
@@ -36,8 +67,22 @@ add_library(teklif_core STATIC
     src/core/repo_quotes.h
     src/core/repo_quotes.cpp
 )
-target_include_directories(teklif_core PUBLIC src)
+target_include_directories(teklif_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(teklif_core PUBLIC Qt6::Core Qt6::Sql)
+
+# ---------------------------------------------------------------------------
+# update: otomatik güncelleme. teklif_core'a bağımlı, Widgets'e DEĞİL —
+# sunucudaki latest.json'u okuyup sürüm karşılaştıran ve paketi indirip
+# doğrulayan kısım arayüzsüz test edilebilsin diye. Kullanıcıya soru soran
+# diyalog ui katmanında kalır.
+# ---------------------------------------------------------------------------
+add_library(teklif_update STATIC
+    src/update/update_info.h
+    src/update/update_info.cpp
+    src/update/updater.h
+    src/update/updater.cpp
+)
+target_link_libraries(teklif_update PUBLIC teklif_core Qt6::Network)
 
 # ---------------------------------------------------------------------------
 # print: baskı/PDF. teklif_core'a bağımlı; ekran (page_quote) ve gerçek
@@ -77,4 +122,4 @@ target_link_libraries(teklif_app PRIVATE teklif_ui)
 enable_testing()
 add_subdirectory(tests)
 
-# Network (Part 8) hâlâ eklenecek.
+# Network artık teklif_update tarafından kullanılıyor (bkz. src/update/).
