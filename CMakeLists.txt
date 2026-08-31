@@ -97,6 +97,8 @@ target_link_libraries(teklif_update PUBLIC teklif_core Qt6::Network)
 # yazıcı/PDF AYNI DocumentLayout/PrintService kodunu kullanır.
 # ---------------------------------------------------------------------------
 add_library(teklif_print STATIC
+    src/print/company_logo.h
+    src/print/company_logo.cpp
     src/print/document_layout.h
     src/print/document_layout.cpp
     src/print/print_service.h
@@ -129,6 +131,10 @@ add_library(teklif_ui STATIC
     src/ui/item_table_model.cpp
     src/ui/page_catalog.h
     src/ui/page_catalog.cpp
+    src/ui/theme.h
+    src/ui/theme.cpp
+    src/ui/page_settings.h
+    src/ui/page_settings.cpp
     src/ui/mainwindow.h
     src/ui/mainwindow.cpp
 )

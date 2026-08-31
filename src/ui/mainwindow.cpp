@@ -3,6 +3,8 @@
 #include "page_archive.h"
 #include "page_catalog.h"
 #include "page_customers.h"
+#include "page_settings.h"
+#include "theme.h"
 #include "page_quote.h"
 
 #include <QHBoxLayout>
@@ -11,9 +13,10 @@
 #include <QStackedWidget>
 #include <QWidget>
 
-MainWindow::MainWindow(QSqlDatabase db, QWidget *parent) : QMainWindow(parent)
+MainWindow::MainWindow(QSqlDatabase db, QWidget *parent) : QMainWindow(parent), m_db(db)
 {
     setupUi(db);
+    reloadCompanyInfo();
 }
 
 void MainWindow::setupUi(QSqlDatabase db)
@@ -25,6 +28,7 @@ void MainWindow::setupUi(QSqlDatabase db)
     m_nav->addItem(QStringLiteral("Arşiv"));
     m_nav->addItem(QStringLiteral("Katalog"));
     m_nav->addItem(QStringLiteral("Müşteriler"));
+    m_nav->addItem(QStringLiteral("Ayarlar"));
 
     m_stack = new QStackedWidget(this);
     m_stack->setObjectName(QStringLiteral("pageStack"));
@@ -37,12 +41,15 @@ void MainWindow::setupUi(QSqlDatabase db)
     m_pageCatalog->setObjectName(QStringLiteral("pageCatalog"));
     m_pageCustomers = new PageCustomers(db, this);
     m_pageCustomers->setObjectName(QStringLiteral("pageCustomers"));
+    m_pageSettings = new PageSettings(db, this);
+    m_pageSettings->setObjectName(QStringLiteral("pageSettings"));
 
     // Sıra mainwindow.h'deki Page numaralandırmasıyla AYNI olmalı.
     m_stack->addWidget(m_pageQuote);
     m_stack->addWidget(m_pageArchive);
     m_stack->addWidget(m_pageCatalog);
     m_stack->addWidget(m_pageCustomers);
+    m_stack->addWidget(m_pageSettings);
 
     connect(m_nav, &QListWidget::currentRowChanged, this, [this](int row) {
         if (row < 0)
@@ -56,6 +63,8 @@ void MainWindow::setupUi(QSqlDatabase db)
             m_pageCatalog->refresh();
         else if (row == PageCustomersIndex)
             m_pageCustomers->refresh();
+        else if (row == PageSettingsIndex)
+            m_pageSettings->refresh();
     });
 
     // Arşivden ve müşteri kartından gelen "bu teklifi aç" istekleri.
@@ -72,6 +81,13 @@ void MainWindow::setupUi(QSqlDatabase db)
     connect(m_pageCatalog, &PageCatalog::catalogChanged, this,
             [this] { m_pageQuote->reloadCatalog(); });
 
+    // Ayarlar kaydedilince antet, KDV oranı ve şartlar metni tazelenir;
+    // kullanıcı ayarları girip hemen yazdırabilmeli.
+    connect(m_pageSettings, &PageSettings::companyInfoChanged, this, [this] {
+        reloadCompanyInfo();
+        m_pageQuote->reloadSettings();
+    });
+
     auto *govde = new QWidget(this);
     auto *lay = new QHBoxLayout(govde);
     lay->setContentsMargins(0, 0, 0, 0);
@@ -85,6 +101,19 @@ void MainWindow::setupUi(QSqlDatabase db)
 void MainWindow::setCompanyInfo(const CompanyInfo &company)
 {
     m_pageQuote->setCompanyInfo(company);
+}
+
+void MainWindow::reloadCompanyInfo()
+{
+    Settings settings(m_db);
+    CompanyInfo firma;
+    firma.unvan = settings.valueOr(Settings::keyCompanyName());
+    firma.adres = settings.valueOr(Settings::keyCompanyAddress());
+    firma.telefon = settings.valueOr(Settings::keyCompanyPhone());
+    firma.email = settings.valueOr(Settings::keyCompanyEmail());
+    firma.vergiDairesi = settings.valueOr(Settings::keyCompanyTaxOffice());
+    firma.vergiNo = settings.valueOr(Settings::keyCompanyTaxNo());
+    m_pageQuote->setCompanyInfo(firma);
 }
 
 void MainWindow::showPage(Page page)

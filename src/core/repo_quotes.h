@@ -67,5 +67,15 @@ private:
 
     // ÇAĞRILDIĞI YERDE zaten açık bir transaction olmalı.
     QString nextQuoteNumberLocked(QString *errorOut);
+
+public:
+    // Teklif numarasının sıfır dolgulu hane sayısı için kabul edilen aralık.
+    // Alt sınır 4: daha azı birkaç yüz teklifte hemen taşardı. Üst sınır 8:
+    // ötesi belgede okunaksız uzunlukta bir numara demek.
+    static constexpr int kMinQuoteNoDigits = 4;
+    static constexpr int kMaxQuoteNoDigits = 8;
+    static constexpr int kDefaultQuoteNoDigits = 6;
+
+private:
     bool insertLines(qint64 quoteId, const QVector<QuoteLine> &lines, QString *errorOut);
 };

@@ -39,6 +39,9 @@ public:
     // müşteri listesi değiştiğinde çağrılır.
     void reloadCatalog();
     void reloadCustomers();
+    // Ayarlar değiştiğinde KDV oranını, şartlar metnini ve yazı boyutunu
+    // yeniden okur.
+    void reloadSettings();
 
     // Formu sıfırlar, yeni (kaydedilmemiş) teklif moduna geçer.
     void newQuote();
@@ -110,6 +113,9 @@ private:
     // Kaydedilirken kullanılan KDV oranı. Kutu işaretliyse bu, değilse 0.
     // Ayarlardan okunur (varsayılan %20), böylece oran tek yerden değişir.
     int m_kdvOrani = 20;
+    // Kaydedilirken teklife kopyalanan şartlar metni. Yeni teklifte
+    // ayarlardan gelir, açılan teklifte kendi metnidir.
+    QString m_sartlarMetni;
     QVector<Customer> m_customers; // reloadCustomers() doldurur; currentCustomer() burada arar
 
     void setupUi();

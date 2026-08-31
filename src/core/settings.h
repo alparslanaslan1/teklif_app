@@ -29,7 +29,9 @@ public:
     static QString keyCompanyEmail();
     static QString keyCompanyTaxOffice();
     static QString keyCompanyTaxNo();
+    static QString keyCompanyLogo();     // base64 PNG; boş = logo yok
     static QString keyDefaultVatRate();  // yeni tekliflerin varsayılan KDV oranı
+    static QString keyQuoteNoDigits();   // teklif numarasının sıfır dolgulu hane sayısı
     static QString keyUiScale();         // arayüz ölçeği (%)
     static QString keyDocumentFontPt();  // belge yazı boyutu (pt)
     static QString keyPdfFolder();

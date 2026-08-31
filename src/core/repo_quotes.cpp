@@ -51,9 +51,18 @@ QString RepoQuotes::nextQuoteNumberLocked(QString *errorOut)
     if (!settings.setInt(Settings::keyQuoteCounter(), sonraki, errorOut))
         return QString();
 
-    // 6 haneli sıfır dolgulu; 999.999'u aşınca kendiliğinden 7 haneye
-    // taşar (rightJustified minimumu garanti eder, üst sınır koymaz).
-    return QString::number(sonraki).rightJustified(6, QLatin1Char('0'));
+    // Hane sayısı ayarlanabilir (varsayılan 6). Ayar bozuk ya da aralık
+    // dışıysa varsayılana düşülür — numara üretimi hiçbir koşulda
+    // başarısız olmamalı.
+    // Sayaç sınırı AŞARSA numara kendiliğinden uzar: rightJustified minimumu
+    // garanti eder, üst sınır koymaz. Yani hane sayısını küçültmek eski
+    // teklifleri bozmaz, onlar zaten metin olarak saklanıyor.
+    const qint64 ayarlanan =
+        settings.intValueOr(Settings::keyQuoteNoDigits(), kDefaultQuoteNoDigits);
+    const int hane = static_cast<int>(qBound(static_cast<qint64>(kMinQuoteNoDigits), ayarlanan,
+                                              static_cast<qint64>(kMaxQuoteNoDigits)));
+
+    return QString::number(sonraki).rightJustified(hane, QLatin1Char('0'));
 }
 
 bool RepoQuotes::insertLines(qint64 quoteId, const QVector<QuoteLine> &lines,

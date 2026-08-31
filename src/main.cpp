@@ -3,6 +3,7 @@
 #include "core/db.h"
 #include "core/settings.h"
 #include "core/version.h"
+#include "ui/theme.h"
 
 #include <QApplication>
 #include <QMessageBox>
@@ -34,18 +35,15 @@ int main(int argc, char *argv[])
 
     QSqlDatabase db = QSqlDatabase::database(QStringLiteral("teklif"));
 
+    // Arayüz ölçeği pencereler kurulmadan ÖNCE uygulanır; sonradan
+    // uygulansaydı zaten oluşmuş widget'lar eski boyutta kalırdı.
     Settings settings(db);
-    CompanyInfo firma;
-    firma.unvan = settings.valueOr(Settings::keyCompanyName());
-    firma.adres = settings.valueOr(Settings::keyCompanyAddress());
-    firma.telefon = settings.valueOr(Settings::keyCompanyPhone());
-    firma.email = settings.valueOr(Settings::keyCompanyEmail());
-    firma.vergiDairesi = settings.valueOr(Settings::keyCompanyTaxOffice());
-    firma.vergiNo = settings.valueOr(Settings::keyCompanyTaxNo());
+    Theme::applyFromSettings(settings);
 
+    // Firma bilgisi MainWindow tarafından ayarlardan okunur; ayarlar
+    // ekranında değiştirilince de aynı yoldan tazelenir.
     MainWindow window(db);
     window.setWindowTitle(QStringLiteral("Teklif %1").arg(QStringLiteral(APP_VERSION)));
-    window.setCompanyInfo(firma);
     window.resize(1200, 780);
     window.show();
 

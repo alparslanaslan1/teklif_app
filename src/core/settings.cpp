@@ -13,7 +13,9 @@ QString Settings::keyCompanyPhone()       { return QStringLiteral("firma_telefon
 QString Settings::keyCompanyEmail()       { return QStringLiteral("firma_email"); }
 QString Settings::keyCompanyTaxOffice()   { return QStringLiteral("firma_vergi_dairesi"); }
 QString Settings::keyCompanyTaxNo()       { return QStringLiteral("firma_vergi_no"); }
+QString Settings::keyCompanyLogo()        { return QStringLiteral("firma_logo"); }
 QString Settings::keyDefaultVatRate()     { return QStringLiteral("varsayilan_kdv_orani"); }
+QString Settings::keyQuoteNoDigits()      { return QStringLiteral("teklif_no_hane"); }
 QString Settings::keyUiScale()            { return QStringLiteral("arayuz_olcegi"); }
 QString Settings::keyDocumentFontPt()     { return QStringLiteral("belge_yazi_boyutu"); }
 QString Settings::keyPdfFolder()          { return QStringLiteral("pdf_klasoru"); }

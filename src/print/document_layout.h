@@ -2,6 +2,7 @@
 
 #include "core/models.h"
 
+#include <QImage>
 #include <QRectF>
 #include <QVector>
 
@@ -14,9 +15,10 @@ class QPainter;
 // kaynağı demektir — önizlemede düzgün görünüp kâğıtta bozulan bir belge
 // bu yüzden mümkün değildir.
 //
-// LOGO YOK: hiçbir yerde logo saklanmıyor, bu yüzden yerleşim logo alanı
-// AYIRMADAN tasarlandı. "Logo yok" özel bir durum değil, varsayılan
-// davranıştır; sonradan eklenirse antet yüksekliği yeniden hesaplanır.
+// LOGO İSTEĞE BAĞLIDIR: logo verilmezse antet için hiç yer AYRILMAZ, firma
+// bilgisi sayfanın sol kenarından başlar. "Logo yok" özel bir durum değil,
+// varsayılan davranıştır — antet kendiliğinden kısalır, boş bir dikdörtgen
+// kalmaz.
 
 // Belgeyi çizmek için gereken her şey. Yerleşim veritabanına HİÇ gitmez —
 // çağıran taraf ne basılacağını eksiksiz verir, böylece sınıf arayüzden de
@@ -26,6 +28,9 @@ struct DocumentContext
     Quote quote;
     Customer customer;
     CompanyInfo company;
+    // Boş bırakılabilir; o zaman antet logosuz düzene geçer.
+    // Ayarlardan okumak için bkz. print/company_logo.h.
+    QImage logo;
     // Belge yazı boyutu (Part 7'de ayarlanabilir olacak, 8-12 pt).
     // Arayüz ölçeğinden BAĞIMSIZDIR: bu yalnızca çıktıyı etkiler.
     int fontPt = 10;
@@ -79,6 +84,10 @@ private:
         QRectF sira, aciklama, birim, miktar, fiyat, tutar;
     };
     Columns columnsFor(const QRectF &pageRect) const;
+
+    // Logonun çizileceği dikdörtgen. Logo yoksa boş (isNull) döner ve
+    // antet metni sayfanın sol kenarından başlar.
+    QRectF logoRect(QPainter *p, const QRectF &pageRect) const;
 
     double measureHeader(QPainter *p, const QRectF &pageRect) const;
     double measureTotals(QPainter *p, const QRectF &pageRect) const;

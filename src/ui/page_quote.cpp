@@ -4,6 +4,7 @@
 #include "core/numtowords.h"
 #include "dlg_line_entry.h"
 #include "item_search.h"
+#include "print/company_logo.h"
 #include "print/print_service.h"
 #include "quote_line_model.h"
 #include "quote_table_view.h"
@@ -47,6 +48,7 @@ PageQuote::PageQuote(QSqlDatabase db, QWidget *parent)
     // KDV oranı ayarlardan gelir; ayar yoksa %20. Oran tek yerden değişsin
     // diye ekranda sabit yazılmaz.
     m_kdvOrani = static_cast<int>(m_settings.intValueOr(Settings::keyDefaultVatRate(), 20));
+    m_sartlarMetni = m_settings.valueOr(Settings::keyTermsText());
     m_kdvCheck->setText(QStringLiteral("KDV uygula (%%1)").arg(m_kdvOrani));
 
     newQuote();
@@ -171,6 +173,17 @@ void PageQuote::setupUi()
 // Veri yükleme
 // ---------------------------------------------------------------------------
 
+void PageQuote::reloadSettings()
+{
+    // Ayarlar ekranında bir şey değiştiğinde çağrılır: KDV oranı, şartlar
+    // metni ve belge yazı boyutu bir sonraki teklifte geçerli olsun.
+    m_kdvOrani = static_cast<int>(m_settings.intValueOr(Settings::keyDefaultVatRate(), 20));
+    m_kdvCheck->setText(QStringLiteral("KDV uygula (%%1)").arg(m_kdvOrani));
+    if (m_quoteId == 0)
+        m_sartlarMetni = m_settings.valueOr(Settings::keyTermsText());
+    recomputeTotals();
+}
+
 void PageQuote::reloadCatalog()
 {
     QString err;
@@ -267,6 +280,8 @@ bool PageQuote::loadQuote(qint64 id, QString *errorOut)
         m_kdvOrani = teklif->kdvOraniYuzde;
     m_kdvCheck->setText(QStringLiteral("KDV uygula (%%1)").arg(m_kdvOrani));
     m_kdvCheck->setChecked(teklif->kdvOraniYuzde > 0);
+    // Kayıtlı teklif kendi şartlar metnini taşır.
+    m_sartlarMetni = teklif->sartlarMetni;
 
     // Müşteri listede yoksa (pasife alınmışsa) yine de seçilebilsin diye
     // listeye geçici olarak eklenir; aksi halde teklif müşterisiz görünürdü.
@@ -297,6 +312,10 @@ Quote PageQuote::currentQuoteSnapshot() const
     q.tarih = m_tarihEdit->date();
     q.gecerlilikGun = m_gecerlilikSpin->value();
     q.projeBasligi = m_projeEdit->text().trimmed();
+    // Şartlar metni ayarlardan gelir; teklif kaydedildiğinde metnin O ANKİ
+    // hâli belgeye yazılır ve orada donar (ayar sonradan değişse bile eski
+    // teklif kendi şartlarıyla basılır).
+    q.sartlarMetni = m_sartlarMetni;
     q.kdvOraniYuzde = m_kdvCheck->isChecked() ? m_kdvOrani : 0;
     q.satirlar = m_model->lines();
 
@@ -397,6 +416,9 @@ DocumentContext PageQuote::buildDocumentContext() const
     ctx.quote = currentQuoteSnapshot();
     ctx.customer = currentCustomer();
     ctx.company = m_company;
+    // Logo ayarlardan okunur. Yoksa null kalır ve antet logosuz düzene
+    // geçer (bkz. print/document_layout.h).
+    ctx.logo = CompanyLogo::load(m_settings);
     // Belge yazı boyutu ayarlardan; arayüz ölçeğinden bağımsızdır.
     ctx.fontPt = static_cast<int>(m_settings.intValueOr(Settings::keyDocumentFontPt(), 10));
     return ctx;

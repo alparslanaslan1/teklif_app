@@ -30,6 +30,13 @@ constexpr double kHucreBoslukPt   = 3.0; // hücre içi yatay/dikey pay
 constexpr double kBlokBoslukPt    = 7.0; // bloklar arası dikey boşluk
 constexpr double kSatirEkBoslukPt = 4.0; // satırlara eklenen nefes payı
 
+// Logonun antetteki yüksekliği (punto). ~15 mm: antette baskın olmayacak
+// ama okunacak kadar. Genişlik en-boy oranından türetilir ve sayfa
+// genişliğinin %35'ini aşamaz — çok yatay bir logo anteti yutmasın diye.
+constexpr double kLogoYuksekligiPt = 42.0;
+constexpr double kLogoMaksGenislikOran = 0.35;
+constexpr double kLogoSagBoslukPt = 8.0;
+
 // Puntoyu, çizim yapılan aygıtın piksel ölçüsüne çevirir.
 double px(const QPainter *p, double punto)
 {
@@ -100,6 +107,21 @@ DocumentLayout::Columns DocumentLayout::columnsFor(const QRectF &pageRect) const
 // yoksa sayfa taşar. Bu yüzden ölçüm ayrı fonksiyonlarda toplandı.
 // ---------------------------------------------------------------------------
 
+QRectF DocumentLayout::logoRect(QPainter *p, const QRectF &pageRect) const
+{
+    if (m_ctx.logo.isNull())
+        return {}; // logo yok -> hiç yer ayrılmaz
+
+    const double h = px(p, kLogoYuksekligiPt);
+    // En-boy oranı korunur; sıfıra bölme olmaması için yükseklik kontrol edilir.
+    const double oran = m_ctx.logo.height() > 0
+                            ? static_cast<double>(m_ctx.logo.width()) / m_ctx.logo.height()
+                            : 1.0;
+    const double w = qMin(h * oran, pageRect.width() * kLogoMaksGenislikOran);
+
+    return QRectF(pageRect.left(), pageRect.top(), w, h);
+}
+
 double DocumentLayout::measureHeader(QPainter *p, const QRectF &pageRect) const
 {
     const QFontMetricsF fm(baseFont(), p->device());
@@ -125,7 +147,12 @@ double DocumentLayout::measureHeader(QPainter *p, const QRectF &pageRect) const
             ++musteriSatir;
     }
 
-    double h = qMax(solSatir, sagSatir) * satir + px(p, kBlokBoslukPt);
+    // Sol blok logo ile firma metninin ALT ALTA değil YAN YANA durduğu
+    // bölümdür: yüksekliği ikisinin büyüğü belirler.
+    const QRectF logo = logoRect(p, pageRect);
+    const double solBlokYuksekligi = qMax(logo.height(), solSatir * satir);
+
+    double h = qMax(solBlokYuksekligi, sagSatir * satir) + px(p, kBlokBoslukPt);
     h += satir; // "SAYIN" etiketi
     h += musteriSatir * satir + px(p, kBlokBoslukPt);
 
@@ -271,10 +298,22 @@ void DocumentLayout::paintHeader(QPainter *p, const QRectF &pageRect, double &y)
     const double sagX = pageRect.left() + pageRect.width() * 0.55;
     const double sagW = pageRect.width() * 0.45;
 
+    // Logo varsa sol üste çizilir ve firma metni onun SAĞINDAN başlar.
+    // Logo yoksa metinX sayfanın sol kenarıdır — yani logosuz düzen
+    // birebir eskisi gibi kalır.
+    const QRectF logo = logoRect(p, pageRect);
+    double metinX = pageRect.left();
+    double metinW = pageRect.width() * 0.5;
+    if (!logo.isNull()) {
+        p->drawImage(logo, m_ctx.logo);
+        metinX = logo.right() + px(p, kLogoSagBoslukPt);
+        metinW = sagX - metinX - px(p, kLogoSagBoslukPt);
+    }
+
     double solY = y;
     p->setFont(boldFont());
     if (!m_ctx.company.unvan.trimmed().isEmpty()) {
-        p->drawText(QRectF(pageRect.left(), solY, pageRect.width() * 0.5, satir),
+        p->drawText(QRectF(metinX, solY, metinW, satir),
                      Qt::AlignLeft | Qt::AlignVCenter, m_ctx.company.unvan);
         solY += satir;
     }
@@ -283,7 +322,7 @@ void DocumentLayout::paintHeader(QPainter *p, const QRectF &pageRect, double &y)
                               m_ctx.company.vergiDairesi, m_ctx.company.vergiNo}) {
         if (s.trimmed().isEmpty())
             continue;
-        p->drawText(QRectF(pageRect.left(), solY, pageRect.width() * 0.5, satir),
+        p->drawText(QRectF(metinX, solY, metinW, satir),
                      Qt::AlignLeft | Qt::AlignVCenter, s);
         solY += satir;
     }
@@ -304,7 +343,10 @@ void DocumentLayout::paintHeader(QPainter *p, const QRectF &pageRect, double &y)
                  QStringLiteral("Geçerlilik: %1 gün").arg(m_ctx.quote.gecerlilikGun));
     sagY += satir;
 
-    y = qMax(solY, sagY) + px(p, kBlokBoslukPt);
+    // Logo, firma metninden uzun olabilir; antetin alt sınırı üçünün de
+    // altında kalmalı, yoksa müşteri bloğu logonun üzerine biner.
+    const double logoAlt = logo.isNull() ? 0.0 : logo.bottom();
+    y = qMax(qMax(solY, sagY), logoAlt) + px(p, kBlokBoslukPt);
 
     p->setFont(smallFont());
     p->drawText(QRectF(pageRect.left(), y, pageRect.width(), satir),

@@ -11,6 +11,7 @@ class PageQuote;
 class PageArchive;
 class PageCustomers;
 class PageCatalog;
+class PageSettings;
 
 // Ana pencere: solda sayfa listesi, sağda seçili sayfa.
 //
@@ -35,9 +36,11 @@ public:
     PageArchive *archivePage() const { return m_pageArchive; }
     PageCustomers *customersPage() const { return m_pageCustomers; }
     PageCatalog *catalogPage() const { return m_pageCatalog; }
+    PageSettings *settingsPage() const { return m_pageSettings; }
 
     // Sayfa sırası; sol listedeki satırlarla birebir aynı.
-    enum Page { PageQuoteIndex = 0, PageArchiveIndex, PageCatalogIndex, PageCustomersIndex };
+    enum Page { PageQuoteIndex = 0, PageArchiveIndex, PageCatalogIndex, PageCustomersIndex,
+                PageSettingsIndex };
     void showPage(Page page);
 
 private slots:
@@ -52,6 +55,12 @@ private:
     PageArchive *m_pageArchive;
     PageCustomers *m_pageCustomers;
     PageCatalog *m_pageCatalog;
+    PageSettings *m_pageSettings;
 
     void setupUi(QSqlDatabase db);
+    // Firma bilgisini ayarlardan okuyup teklif ekranına verir. Hem açılışta
+    // hem ayarlar kaydedildiğinde çağrılır, böylece antet tek yerden beslenir.
+    void reloadCompanyInfo();
+
+    QSqlDatabase m_db;
 };

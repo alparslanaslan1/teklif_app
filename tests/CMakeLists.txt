@@ -59,8 +59,10 @@ add_teklif_ui_test(test_quote_table_view)
 add_teklif_ui_test(test_page_quote)
 add_teklif_ui_test(test_page_archive)
 add_teklif_ui_test(test_page_catalog)
+add_teklif_ui_test(test_page_settings)
 
 add_teklif_update_test(test_updater)
 
+add_teklif_print_test(test_company_logo)
 add_teklif_print_test(test_document_layout)
 add_teklif_print_test(test_print_service)
