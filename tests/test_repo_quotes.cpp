@@ -57,18 +57,18 @@ void TestRepoQuotes::addAssignsSequentialNumbers()
         Customer c;
         c.unvan = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q1;
         q1.customerId = c.id;
         q1.tarih = QDate(2026, 8, 25);
-        QVERIFY2(RepoQuotes::add(db, q1, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q1, &e), qPrintable(e));
         QCOMPARE(q1.teklifNo, QStringLiteral("000001"));
 
         Quote q2;
         q2.customerId = c.id;
         q2.tarih = QDate(2026, 8, 25);
-        QVERIFY2(RepoQuotes::add(db, q2, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q2, &e), qPrintable(e));
         QCOMPARE(q2.teklifNo, QStringLiteral("000002"));
     }
     closeAndRemove(conn);
@@ -87,7 +87,7 @@ void TestRepoQuotes::addPersistsLinesAndTotals()
         Customer c;
         c.unvan = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q;
         q.customerId = c.id;
@@ -100,10 +100,10 @@ void TestRepoQuotes::addPersistsLinesAndTotals()
             mkLine(1, QStringLiteral("Alçıpan Levha"), QStringLiteral("adet"), 24, 18000),
             mkLine(2, QStringLiteral("İşçilik"), QStringLiteral("saat"), 16, 35000),
         };
-        QVERIFY2(RepoQuotes::add(db, q, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
         QVERIFY(q.id > 0);
 
-        const auto okundu = RepoQuotes::get(db, q.id, &e);
+        const auto okundu = RepoQuotes(db).get(q.id, &e);
         QVERIFY2(okundu.has_value(), qPrintable(e));
         QCOMPARE(okundu->teklifNo, q.teklifNo);
         QCOMPARE(okundu->customerId, c.id);
@@ -136,21 +136,21 @@ void TestRepoQuotes::updateReplacesLines()
         Customer c;
         c.unvan = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q;
         q.customerId = c.id;
         q.tarih = QDate(2026, 8, 25);
         q.satirlar = {mkLine(1, QStringLiteral("Eski Satır"), QStringLiteral("adet"), 1, 1000)};
-        QVERIFY2(RepoQuotes::add(db, q, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
 
         q.satirlar = {
             mkLine(1, QStringLiteral("Yeni Satır 1"), QStringLiteral("adet"), 2, 2000),
             mkLine(2, QStringLiteral("Yeni Satır 2"), QStringLiteral("adet"), 3, 3000),
         };
-        QVERIFY2(RepoQuotes::update(db, q, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).update(q, &e), qPrintable(e));
 
-        const auto okundu = RepoQuotes::get(db, q.id, &e);
+        const auto okundu = RepoQuotes(db).get(q.id, &e);
         QVERIFY2(okundu.has_value(), qPrintable(e));
         QCOMPARE(okundu->satirlar.size(), 2);
         QCOMPARE(okundu->satirlar[0].aciklama, QStringLiteral("Yeni Satır 1"));
@@ -176,24 +176,24 @@ void TestRepoQuotes::priceIsCopiedNotReferenced()
         it.birim = QStringLiteral("saat");
         it.varsayilanFiyat = Money::fromString(QStringLiteral("350,00")).value();
         QString e;
-        QVERIFY2(RepoItems::add(db, it, &e), qPrintable(e));
+        QVERIFY2(RepoItems(db).add(it, &e), qPrintable(e));
 
         Customer c;
         c.unvan = QStringLiteral("Test Müşteri");
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q;
         q.customerId = c.id;
         q.tarih = QDate(2026, 8, 25);
         q.satirlar = {mkLine(1, it.ad, it.birim, 10, it.varsayilanFiyat.kurus())};
-        QVERIFY2(RepoQuotes::add(db, q, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
 
         // Katalogdaki fiyatı değiştir.
         it.varsayilanFiyat = Money::fromString(QStringLiteral("500,00")).value();
-        QVERIFY2(RepoItems::update(db, it, &e), qPrintable(e));
+        QVERIFY2(RepoItems(db).update(it, &e), qPrintable(e));
 
         // Teklifi tekrar oku: satırdaki fiyat ESKİ haliyle durmalı.
-        const auto okundu = RepoQuotes::get(db, q.id, &e);
+        const auto okundu = RepoQuotes(db).get(q.id, &e);
         QVERIFY2(okundu.has_value(), qPrintable(e));
         QCOMPARE(okundu->satirlar.first().birimFiyat.toString(), QStringLiteral("350,00"));
     }
@@ -213,17 +213,17 @@ void TestRepoQuotes::sequenceSurvivesAcrossYearBoundary()
         Customer c;
         c.unvan = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q1;
         q1.customerId = c.id;
         q1.tarih = QDate(2026, 12, 31);
-        QVERIFY2(RepoQuotes::add(db, q1, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q1, &e), qPrintable(e));
 
         Quote q2;
         q2.customerId = c.id;
         q2.tarih = QDate(2027, 1, 1); // yıl değişti
-        QVERIFY2(RepoQuotes::add(db, q2, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q2, &e), qPrintable(e));
 
         // Sayaç sıfırlanmadı, artmaya devam etti.
         QCOMPARE(q1.teklifNo, QStringLiteral("000001"));
@@ -249,12 +249,12 @@ void TestRepoQuotes::sequenceWraps7Digits()
         Customer c;
         c.unvan = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q;
         q.customerId = c.id;
         q.tarih = QDate(2026, 8, 25);
-        QVERIFY2(RepoQuotes::add(db, q, &e), qPrintable(e));
+        QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
 
         QCOMPARE(q.teklifNo, QStringLiteral("1000000")); // 7 haneye taştı, çökmedi
     }
@@ -274,14 +274,14 @@ void TestRepoQuotes::rapidSequentialAddsNeverDuplicate()
         Customer c;
         c.unvan = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         QSet<QString> numaralar;
         for (int i = 0; i < 20; ++i) {
             Quote q;
             q.customerId = c.id;
             q.tarih = QDate(2026, 8, 25);
-            QVERIFY2(RepoQuotes::add(db, q, &e), qPrintable(e));
+            QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
             QVERIFY2(!numaralar.contains(q.teklifNo),
                      qPrintable(QStringLiteral("Tekrarlanan numara: %1").arg(q.teklifNo)));
             numaralar.insert(q.teklifNo);

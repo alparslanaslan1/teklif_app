@@ -39,7 +39,7 @@ void TestRepoCustomers::addAssignsId()
         c.unvan = QStringLiteral("Ahmet Yılmaz");
         c.telefon = QStringLiteral("0532 000 00 00");
         QString addErr;
-        QVERIFY2(RepoCustomers::add(db, c, &addErr), qPrintable(addErr));
+        QVERIFY2(RepoCustomers(db).add(c, &addErr), qPrintable(addErr));
         QVERIFY(c.id > 0);
     }
     closeAndRemove(conn);
@@ -60,10 +60,10 @@ void TestRepoCustomers::listOrderedByUnvan()
             Customer c;
             c.unvan = unvan;
             QString e;
-            QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+            QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
         }
 
-        const QVector<Customer> liste = RepoCustomers::listAll(db);
+        const QVector<Customer> liste = RepoCustomers(db).listAll();
         QCOMPARE(liste.size(), 3);
         QCOMPARE(liste[0].unvan, QStringLiteral("Ahmet Yılmaz"));
         QCOMPARE(liste[1].unvan, QStringLiteral("Deniz Yapı"));
@@ -86,10 +86,10 @@ void TestRepoCustomers::inactiveHiddenByDefault()
         c.unvan = QStringLiteral("Pasif Müşteri");
         c.aktif = false;
         QString e;
-        QVERIFY2(RepoCustomers::add(db, c, &e), qPrintable(e));
+        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
-        QCOMPARE(RepoCustomers::listAll(db, /*includeInactive=*/false).size(), 0);
-        QCOMPARE(RepoCustomers::listAll(db, /*includeInactive=*/true).size(), 1);
+        QCOMPARE(RepoCustomers(db).listAll(/*includeInactive=*/false).size(), 0);
+        QCOMPARE(RepoCustomers(db).listAll(/*includeInactive=*/true).size(), 1);
     }
     closeAndRemove(conn);
 }

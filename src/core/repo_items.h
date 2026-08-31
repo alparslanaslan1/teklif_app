@@ -7,42 +7,55 @@
 #include <QString>
 #include <QVector>
 
+// items (katalog) tablosunun deposu.
+//
+// Bağlantıyı nesne içinde tutar; her çağrıya QSqlDatabase geçirilmez.
+// Böylece çağıran taraf (ekranlar) bir kez kurar, sonra sadece iş çağrılarını
+// yapar — ve testler ile ileride farklı bir veri kaynağı, aynı arayüzü
+// uygulayan başka bir sınıfla yerine konabilir.
+//
+// KOPYALANABİLİR: QSqlDatabase zaten bir tutamaç (handle); kopyalamak yeni
+// bağlantı açmaz, aynı bağlantıya işaret eder.
 class RepoItems
 {
 public:
+    explicit RepoItems(QSqlDatabase db);
+
     // Yeni kalem ekler. Başarılıysa item.id veritabanının verdiği id ile
     // doldurulur. kod alanı UNIQUE'tir; çakışma ham SQLite metni yerine
     // "Bu kod zaten kayıtlı: <kod>" biçiminde anlaşılır bir hatayla döner.
-    static bool add(QSqlDatabase &db, Item &item, QString *errorOut);
+    bool add(Item &item, QString *errorOut = nullptr);
 
-    // Var olan bir kalemi id'sine göre tamamen günceller.
-    static bool update(QSqlDatabase &db, const Item &item, QString *errorOut);
+    // Var olan bir kalemi id'sine göre tamamen günceller. id bulunamazsa
+    // hata döner (sessizce "başarılı" saymaz).
+    bool update(const Item &item, QString *errorOut = nullptr);
 
     // Kalemi SİLMEZ, sadece aktif/pasif durumunu değiştirir. Programın
     // hiçbir yerinde gerçek DELETE çağrılmaz: geçmiş tekliflerdeki satırlar
     // fiyatı kopyaladığı için silme onları bozmaz, ama katalogdan
-    // kaybolması kafa karıştırır (bkz. proje planı).
-    static bool setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *errorOut);
+    // kaybolması kafa karıştırır.
+    bool setActive(qint64 id, bool aktif, QString *errorOut = nullptr);
 
     // includeInactive false ise pasif kalemler listeye girmez. Ada göre
     // TÜRKÇE alfabetik sıralı döner (SQL'in BINARY collation'ı Türkçede
     // yanlış sıralar — bkz. turkish.h).
-    // Sorgu başarısız olursa boş liste döner ve errorOut doldurulur; "katalog
-    // boş" ile "sorgu patladı" birbirinden ayırt edilebilmelidir.
-    static QVector<Item> listAll(QSqlDatabase &db, bool includeInactive = false,
-                                  QString *errorOut = nullptr);
+    // Sorgu başarısız olursa boş liste döner ve errorOut doldurulur.
+    QVector<Item> listAll(bool includeInactive = false, QString *errorOut = nullptr) const;
 
     // İçe aktarma ÖNCE tüm satırları doğrular (csv.h), SONRA tek bir
     // transaction içinde ekler; herhangi bir satır (bozuk CSV veya
     // çakışan kod) başarısız olursa TEK satır bile eklemeden geri alınır.
     // Kategori adı katalogda yoksa otomatik oluşturulur.
-    static bool importCsv(QSqlDatabase &db, const QString &csvContent, QString *errorOut);
+    bool importCsv(const QString &csvContent, QString *errorOut = nullptr);
 
     // Aktif + pasif tüm kalemleri (kategori adlarıyla birlikte) CSV'ye döker.
-    static QString exportCsv(QSqlDatabase &db, QString *errorOut);
+    QString exportCsv(QString *errorOut = nullptr) const;
 
 private:
-    // ad'a sahip kategoriyi bulur, yoksa oluşturur. Hata olursa -1 döner.
-    static qint64 categoryIdForName(QSqlDatabase &db, const QString &ad, QString *errorOut);
-    static QHash<qint64, QString> categoryNameMap(QSqlDatabase &db);
+    QSqlDatabase m_db;
+
+    // ad'a sahip kategoriyi bulur, yoksa oluşturur.
+    // Döner: >0 kategori id'si, 0 ad boş (kategorisiz), -1 hata.
+    qint64 categoryIdForName(const QString &ad, QString *errorOut);
+    QHash<qint64, QString> categoryNameMap() const;
 };

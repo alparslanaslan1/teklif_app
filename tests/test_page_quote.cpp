@@ -91,14 +91,14 @@ void TestPageQuote::saveThenReloadPreservesLinesAndTotals()
     Customer c;
     c.unvan = QStringLiteral("Test Müşteri");
     QString e;
-    QVERIFY2(RepoCustomers::add(m_db, c, &e), qPrintable(e));
+    QVERIFY2(RepoCustomers(m_db).add(c, &e), qPrintable(e));
 
     Item it;
     it.kod = QStringLiteral("ISC-01");
     it.ad = QStringLiteral("İşçilik");
     it.birim = QStringLiteral("saat");
     it.varsayilanFiyat = Money::fromString(QStringLiteral("350,00")).value();
-    QVERIFY2(RepoItems::add(m_db, it, &e), qPrintable(e));
+    QVERIFY2(RepoItems(m_db).add(it, &e), qPrintable(e));
 
     PageQuote page(m_db);
     page.reloadCustomers();
@@ -129,14 +129,14 @@ void TestPageQuote::savedQuoteKeepsOldCatalogPrice()
     Customer c;
     c.unvan = QStringLiteral("Test Müşteri");
     QString e;
-    QVERIFY2(RepoCustomers::add(m_db, c, &e), qPrintable(e));
+    QVERIFY2(RepoCustomers(m_db).add(c, &e), qPrintable(e));
 
     Item it;
     it.kod = QStringLiteral("X");
     it.ad = QStringLiteral("Kalem");
     it.birim = QStringLiteral("adet");
     it.varsayilanFiyat = Money::fromString(QStringLiteral("100,00")).value();
-    QVERIFY2(RepoItems::add(m_db, it, &e), qPrintable(e));
+    QVERIFY2(RepoItems(m_db).add(it, &e), qPrintable(e));
 
     PageQuote page(m_db);
     page.reloadCustomers();
@@ -150,7 +150,7 @@ void TestPageQuote::savedQuoteKeepsOldCatalogPrice()
 
     // Katalog fiyatını değiştir.
     it.varsayilanFiyat = Money::fromString(QStringLiteral("500,00")).value();
-    QVERIFY2(RepoItems::update(m_db, it, &e), qPrintable(e));
+    QVERIFY2(RepoItems(m_db).update(it, &e), qPrintable(e));
 
     PageQuote page2(m_db);
     QVERIFY2(page2.loadQuote(id, &err), qPrintable(err));
@@ -162,7 +162,7 @@ void TestPageQuote::tenLinesKeyboardOnly()
     Customer c;
     c.unvan = QStringLiteral("Test Müşteri");
     QString e;
-    QVERIFY2(RepoCustomers::add(m_db, c, &e), qPrintable(e));
+    QVERIFY2(RepoCustomers(m_db).add(c, &e), qPrintable(e));
 
     for (int i = 0; i < 10; ++i) {
         Item it;
@@ -170,7 +170,7 @@ void TestPageQuote::tenLinesKeyboardOnly()
         it.ad = QStringLiteral("Kalem%1").arg(i);
         it.birim = QStringLiteral("adet");
         it.varsayilanFiyat = Money(1000);
-        QVERIFY2(RepoItems::add(m_db, it, &e), qPrintable(e));
+        QVERIFY2(RepoItems(m_db).add(it, &e), qPrintable(e));
     }
 
     PageQuote page(m_db);

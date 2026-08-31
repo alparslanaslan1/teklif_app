@@ -6,6 +6,10 @@
 #include <QSqlError>
 #include <QSqlQuery>
 
+#include <utility>
+
+RepoQuotes::RepoQuotes(QSqlDatabase db) : m_db(std::move(db)) {}
+
 
 // Sıradaki teklif numarasını üretir ve sayacı artırır ("000001", "000002" ...).
 // İsmindeki "Locked", çağrıldığı yerde ZATEN açık bir transaction bulunması
@@ -17,12 +21,12 @@
 //             oluşturulur, varsa güncellenir.
 // Numara sürekli artar, yıl bazında sıfırlanmaz. 999999'dan sonra kendiliğinden
 // 7 haneye taşar; rightJustified minimumu garanti eder, üst sınır koymaz.
-QString RepoQuotes::nextQuoteNumberLocked(QSqlDatabase &db, QString *errorOut)
+QString RepoQuotes::nextQuoteNumberLocked(QString *errorOut)
 {
     // settings tablosuna doğrudan SQL yazmak yerine Settings üzerinden gidilir:
     // anahtar adı tek yerde tanımlıdır ve teklif deposunun ayarlar şemasını
     // bilmesi gerekmez.
-    Settings settings(db);
+    Settings settings(m_db);
 
     QString okuErr;
     const auto mevcutMetin = settings.value(Settings::keyQuoteCounter(), &okuErr);
@@ -50,10 +54,10 @@ QString RepoQuotes::nextQuoteNumberLocked(QSqlDatabase &db, QString *errorOut)
     return QString::number(sonraki).rightJustified(6, QLatin1Char('0'));
 }
 
-bool RepoQuotes::insertLines(QSqlDatabase &db, qint64 quoteId, const QVector<QuoteLine> &lines,
+bool RepoQuotes::insertLines(qint64 quoteId, const QVector<QuoteLine> &lines,
                               QString *errorOut)
 {
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     q.prepare(QStringLiteral(
         "INSERT INTO quote_lines (quote_id, sira, aciklama, birim, miktar, birim_fiyat, satir_notu, tutar) "
         "VALUES (:qid, :sira, :aciklama, :birim, :miktar, :fiyat, :notu, :tutar)"));
@@ -87,10 +91,10 @@ bool RepoQuotes::insertLines(QSqlDatabase &db, qint64 quoteId, const QVector<Quo
 // tarih, QDate'ten Qt::ISODate metnine ("2026-08-25") çevrilerek yazılır.
 // quote.id ve quote.teklifNo COMMIT'ten SONRA atanır, yani bu alanlar yalnızca
 // kayıt gerçekten kalıcı olduysa dolar.
-bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
+bool RepoQuotes::add(Quote &quote, QString *errorOut)
 {
     // Transaction RAII: aşağıdaki her erken return otomatik ROLLBACK eder.
-    Transaction tx(db);
+    Transaction tx(m_db);
     if (!tx.isActive()) {
         if (errorOut)
             *errorOut = tx.lastError();
@@ -99,11 +103,11 @@ bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
 
     // Numara üretimi de aynı transaction'ın parçasıdır: sonraki adımlardan
     // biri başarısız olursa sayaç da geri alınır, numara boşa harcanmaz.
-    const QString teklifNo = nextQuoteNumberLocked(db, errorOut);
+    const QString teklifNo = nextQuoteNumberLocked(errorOut);
     if (teklifNo.isEmpty())
         return false;
 
-    QSqlQuery ins(db);
+    QSqlQuery ins(m_db);
     ins.prepare(QStringLiteral(
         "INSERT INTO quotes (teklif_no, customer_id, tarih, gecerlilik_gun, proje_basligi, proje_notu, "
         "durum, sartlar_metni, ara_toplam, kdv_orani, kdv_tutari, genel_toplam) "
@@ -129,7 +133,7 @@ bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
 
     const qint64 quoteId = ins.lastInsertId().toLongLong();
 
-    if (!insertLines(db, quoteId, quote.satirlar, errorOut))
+    if (!insertLines(quoteId, quote.satirlar, errorOut))
         return false;
 
     if (!tx.commit(errorOut))
@@ -141,16 +145,16 @@ bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
     return true;
 }
 
-bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
+bool RepoQuotes::update(const Quote &quote, QString *errorOut)
 {
-    Transaction tx(db);
+    Transaction tx(m_db);
     if (!tx.isActive()) {
         if (errorOut)
             *errorOut = tx.lastError();
         return false;
     }
 
-    QSqlQuery upd(db);
+    QSqlQuery upd(m_db);
     upd.prepare(QStringLiteral(
         "UPDATE quotes SET customer_id=:cust, tarih=:tarih, gecerlilik_gun=:gecerlilik, "
         "proje_basligi=:baslik, proje_notu=:notu, durum=:durum, sartlar_metni=:sartlar, "
@@ -184,7 +188,7 @@ bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
         return false;
     }
 
-    QSqlQuery del(db);
+    QSqlQuery del(m_db);
     del.prepare(QStringLiteral("DELETE FROM quote_lines WHERE quote_id=:id"));
     del.bindValue(QStringLiteral(":id"), quote.id);
     if (!del.exec()) {
@@ -193,15 +197,15 @@ bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
         return false;
     }
 
-    if (!insertLines(db, quote.id, quote.satirlar, errorOut))
+    if (!insertLines(quote.id, quote.satirlar, errorOut))
         return false;
 
     return tx.commit(errorOut);
 }
 
-std::optional<Quote> RepoQuotes::get(QSqlDatabase &db, qint64 id, QString *errorOut)
+std::optional<Quote> RepoQuotes::get(qint64 id, QString *errorOut) const
 {
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     q.prepare(QStringLiteral("SELECT * FROM quotes WHERE id = :id"));
     q.bindValue(QStringLiteral(":id"), id);
     if (!q.exec() || !q.next()) {
@@ -226,7 +230,7 @@ std::optional<Quote> RepoQuotes::get(QSqlDatabase &db, qint64 id, QString *error
     quote.kdvTutari = Money(q.value(QStringLiteral("kdv_tutari")).toLongLong());
     quote.genelToplam = Money(q.value(QStringLiteral("genel_toplam")).toLongLong());
 
-    QSqlQuery lq(db);
+    QSqlQuery lq(m_db);
     lq.prepare(QStringLiteral("SELECT * FROM quote_lines WHERE quote_id = :id ORDER BY sira"));
     lq.bindValue(QStringLiteral(":id"), id);
     // Satır sorgusu başarısız olursa teklifi SATIRSIZ döndürmek, kullanıcıya

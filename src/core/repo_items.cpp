@@ -9,6 +9,7 @@
 #include <QVariant>
 
 #include <algorithm>
+#include <utility>
 
 namespace {
 
@@ -57,6 +58,8 @@ bool isUniqueViolation(const QSqlError &err)
 
 } // namespace
 
+RepoItems::RepoItems(QSqlDatabase db) : m_db(std::move(db)) {}
+
 
 // Katalog'a yeni kalem ekler. Başarılıysa item.id, veritabanının verdiği id
 // ile doldurulur — parametre bu yüzden referanstır.
@@ -64,9 +67,9 @@ bool isUniqueViolation(const QSqlError &err)
 //                0 yazmak foreign key ihlali olurdu
 //   guncelleme : C++ saatine güvenilmez, SQL tarafında datetime('now') ile yazılır
 // kod alanı UNIQUE'tir; çakışma durumunda anlaşılır bir mesaj üretilir.
-bool RepoItems::add(QSqlDatabase &db, Item &item, QString *errorOut)
+bool RepoItems::add(Item &item, QString *errorOut)
 {
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     q.prepare(QStringLiteral(
         "INSERT INTO items (kod, ad, birim, varsayilan_fiyat, category_id, aktif, guncelleme) "
         "VALUES (:kod, :ad, :birim, :fiyat, :kategori, :aktif, datetime('now'))"));
@@ -93,9 +96,9 @@ bool RepoItems::add(QSqlDatabase &db, Item &item, QString *errorOut)
 
 // Var olan bir kalemi id'sine göre tamamen günceller (kısmi güncelleme yok,
 // tüm alanlar yazılır). Bind mantığı add() ile aynıdır, üzerine WHERE id = :id.
-bool RepoItems::update(QSqlDatabase &db, const Item &item, QString *errorOut)
+bool RepoItems::update(const Item &item, QString *errorOut)
 {
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     q.prepare(QStringLiteral(
         "UPDATE items SET kod=:kod, ad=:ad, birim=:birim, varsayilan_fiyat=:fiyat, "
         "category_id=:kategori, aktif=:aktif, guncelleme=datetime('now') WHERE id=:id"));
@@ -131,9 +134,9 @@ bool RepoItems::update(QSqlDatabase &db, const Item &item, QString *errorOut)
 // yerinde items üzerinde gerçek DELETE çağrılmaz: geçmiş tekliflerdeki satırlar
 // fiyatı kopyaladığı için silme onları bozmaz, ama kalemin katalogdan
 // kaybolması kullanıcıyı yanıltır.
-bool RepoItems::setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *errorOut)
+bool RepoItems::setActive(qint64 id, bool aktif, QString *errorOut)
 {
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     q.prepare(QStringLiteral("UPDATE items SET aktif=:aktif, guncelleme=datetime('now') WHERE id=:id"));
     q.bindValue(QStringLiteral(":aktif"), aktif ? 1 : 0);
     q.bindValue(QStringLiteral(":id"), id);
@@ -155,10 +158,10 @@ bool RepoItems::setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *erro
 // Katalogdaki kalemleri ada göre alfabetik sıralı döner.
 //   includeInactive : false ise (varsayılan) pasif kalemler listeye girmez
 // Her satır itemFromQuery() ile Item'a çevrilir.
-QVector<Item> RepoItems::listAll(QSqlDatabase &db, bool includeInactive, QString *errorOut)
+QVector<Item> RepoItems::listAll(bool includeInactive, QString *errorOut) const
 {
     QVector<Item> sonuc;
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
 
     // ORDER BY YOK — sıralama C++ tarafında yapılır. SQLite'ın varsayılan
     // BINARY collation'ı Türkçede Ç, İ, ı, Ş, Ğ, Ü, Ö ile başlayan kayıtları
@@ -182,10 +185,10 @@ QVector<Item> RepoItems::listAll(QSqlDatabase &db, bool includeInactive, QString
     return sonuc;
 }
 
-QHash<qint64, QString> RepoItems::categoryNameMap(QSqlDatabase &db)
+QHash<qint64, QString> RepoItems::categoryNameMap() const
 {
     QHash<qint64, QString> harita;
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     if (q.exec(QStringLiteral("SELECT id, ad FROM categories"))) {
         while (q.next())
             harita.insert(q.value(0).toLongLong(), q.value(1).toString());
@@ -200,7 +203,7 @@ QHash<qint64, QString> RepoItems::categoryNameMap(QSqlDatabase &db)
 //   > 0   bulunan ya da yeni oluşturulan kategori id'si
 //   == 0  ad boş -> "kategorisiz" (hata değildir)
 //   -1    gerçek hata; çağıran taraf işlemi geri almalıdır
-qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString *errorOut)
+qint64 RepoItems::categoryIdForName(const QString &ad, QString *errorOut)
 {
     // Baştaki/sondaki boşluklar HER YERDE atılır. Daha önce yalnızca boşluk
     // kontrolünde trimmed() kullanılıp SELECT/INSERT ham metinle yapılıyordu;
@@ -209,7 +212,7 @@ qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString
     if (temiz.isEmpty())
         return 0; // kategorisiz — hata değil
 
-    QSqlQuery bul(db);
+    QSqlQuery bul(m_db);
     // COLLATE NOCASE: "boya" ile "Boya" aynı kategoridir. Kullanıcı CSV'yi
     // elle düzenlediği için büyük/küçük harf tutarlılığı beklenemez.
     bul.prepare(QStringLiteral("SELECT id FROM categories WHERE ad = :ad COLLATE NOCASE"));
@@ -223,7 +226,7 @@ qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString
     if (bul.next())
         return bul.value(0).toLongLong();
 
-    QSqlQuery ekle(db);
+    QSqlQuery ekle(m_db);
     ekle.prepare(QStringLiteral("INSERT INTO categories (ad) VALUES (:ad)"));
     ekle.bindValue(QStringLiteral(":ad"), temiz);
     if (!ekle.exec()) {
@@ -234,7 +237,7 @@ qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString
     return ekle.lastInsertId().toLongLong();
 }
 
-bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *errorOut)
+bool RepoItems::importCsv(const QString &csvContent, QString *errorOut)
 {
     // AŞAMA 1 — doğrula. Veritabanına henüz hiç dokunulmaz.
     QString parseErr;
@@ -252,7 +255,7 @@ bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *
 
     // AŞAMA 2 — yaz. Transaction RAII: her erken return ROLLBACK eder,
     // tek satır bile yarım kalmaz.
-    Transaction tx(db);
+    Transaction tx(m_db);
     if (!tx.isActive()) {
         if (errorOut)
             *errorOut = tx.lastError();
@@ -260,7 +263,7 @@ bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *
     }
 
     for (const CsvItemRow &s : satirlar) {
-        const qint64 catId = categoryIdForName(db, s.kategoriAdi, errorOut);
+        const qint64 catId = categoryIdForName(s.kategoriAdi, errorOut);
         if (catId < 0)
             return false;
 
@@ -272,7 +275,7 @@ bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *
         it.categoryId = catId;
 
         QString addErr;
-        if (!add(db, it, &addErr)) {
+        if (!add(it, &addErr)) {
             if (errorOut)
                 *errorOut = QStringLiteral("\"%1\" satırı: %2").arg(s.kod, addErr);
             return false;
@@ -282,14 +285,14 @@ bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *
     return tx.commit(errorOut);
 }
 
-QString RepoItems::exportCsv(QSqlDatabase &db, QString *errorOut)
+QString RepoItems::exportCsv(QString *errorOut) const
 {
-    if (!db.isOpen()) {
+    if (!m_db.isOpen()) {
         if (errorOut)
             *errorOut = QStringLiteral("Veritabanı bağlantısı açık değil.");
         return QString();
     }
-    const QVector<Item> kalemler = listAll(db, /*includeInactive=*/true);
-    const QHash<qint64, QString> kategoriler = categoryNameMap(db);
+    const QVector<Item> kalemler = listAll(/*includeInactive=*/true);
+    const QHash<qint64, QString> kategoriler = categoryNameMap();
     return csvOlustur(kalemler, kategoriler);
 }

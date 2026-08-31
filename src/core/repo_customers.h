@@ -6,18 +6,25 @@
 #include <QString>
 #include <QVector>
 
-// Part 4'te sadece teklif ekranındaki müşteri seçim listesini doldurmak
-// için gereken minimum işlevsellik. Tam müşteri yönetimi (güncelleme,
-// arşiv bağlantısı, arama) Part 6'da eklenecek — orada bu sınıf genişler,
-// yeniden yazılmaz.
+// customers tablosunun deposu.
+//
+// Bağlantıyı nesne içinde tutar (bkz. RepoItems üzerindeki not).
+// Tam müşteri yönetimi (güncelleme, pasife alma, tekil okuma, arama) Part 6'da
+// eklenecek — orada bu sınıf genişler, yeniden yazılmaz.
 class RepoCustomers
 {
 public:
-    static bool add(QSqlDatabase &db, Customer &customer, QString *errorOut);
+    explicit RepoCustomers(QSqlDatabase db);
+
+    // Yeni müşteri ekler. Başarılıysa customer.id veritabanının verdiği id
+    // ile doldurulur.
+    bool add(Customer &customer, QString *errorOut = nullptr);
 
     // includeInactive false ise pasif müşteriler listeye girmez. Unvana göre
     // TÜRKÇE alfabetik sıralı döner. Sorgu başarısız olursa boş liste döner
     // ve errorOut doldurulur.
-    static QVector<Customer> listAll(QSqlDatabase &db, bool includeInactive = false,
-                                      QString *errorOut = nullptr);
+    QVector<Customer> listAll(bool includeInactive = false, QString *errorOut = nullptr) const;
+
+private:
+    QSqlDatabase m_db;
 };

@@ -50,7 +50,7 @@ void TestRepos::addAssignsId()
         it.varsayilanFiyat = Money::fromString(QStringLiteral("10,00")).value();
 
         QString addErr;
-        QVERIFY2(RepoItems::add(db, it, &addErr), qPrintable(addErr));
+        QVERIFY2(RepoItems(db).add(it, &addErr), qPrintable(addErr));
         QVERIFY(it.id > 0);
     }
     closeAndRemove(conn);
@@ -72,14 +72,14 @@ void TestRepos::addDuplicateKodFails()
         birinci.ad = QStringLiteral("Birinci");
         birinci.birim = QStringLiteral("adet");
         QString e1;
-        QVERIFY2(RepoItems::add(db, birinci, &e1), qPrintable(e1));
+        QVERIFY2(RepoItems(db).add(birinci, &e1), qPrintable(e1));
 
         Item ikinci;
         ikinci.kod = QStringLiteral("AYNI-01"); // aynı kod
         ikinci.ad = QStringLiteral("İkinci");
         ikinci.birim = QStringLiteral("adet");
         QString e2;
-        QVERIFY(!RepoItems::add(db, ikinci, &e2));
+        QVERIFY(!RepoItems(db).add(ikinci, &e2));
         QVERIFY(e2.contains(QStringLiteral("zaten kayıtlı")));
         QVERIFY(e2.contains(QStringLiteral("AYNI-01")));
     }
@@ -103,14 +103,14 @@ void TestRepos::updateChangesFields()
         it.birim = QStringLiteral("adet");
         it.varsayilanFiyat = Money::fromString(QStringLiteral("10,00")).value();
         QString addErr;
-        QVERIFY2(RepoItems::add(db, it, &addErr), qPrintable(addErr));
+        QVERIFY2(RepoItems(db).add(it, &addErr), qPrintable(addErr));
 
         it.ad = QStringLiteral("Yeni Ad");
         it.varsayilanFiyat = Money::fromString(QStringLiteral("25,00")).value();
         QString updErr;
-        QVERIFY2(RepoItems::update(db, it, &updErr), qPrintable(updErr));
+        QVERIFY2(RepoItems(db).update(it, &updErr), qPrintable(updErr));
 
-        const QVector<Item> liste = RepoItems::listAll(db);
+        const QVector<Item> liste = RepoItems(db).listAll();
         QCOMPARE(liste.size(), 1);
         QCOMPARE(liste.first().ad, QStringLiteral("Yeni Ad"));
         QCOMPARE(liste.first().varsayilanFiyat.toString(), QStringLiteral("25,00"));
@@ -134,13 +134,13 @@ void TestRepos::setActiveHidesFromDefaultList()
         it.ad = QStringLiteral("Pasife Alınacak");
         it.birim = QStringLiteral("adet");
         QString addErr;
-        QVERIFY2(RepoItems::add(db, it, &addErr), qPrintable(addErr));
+        QVERIFY2(RepoItems(db).add(it, &addErr), qPrintable(addErr));
 
         QString saErr;
-        QVERIFY2(RepoItems::setActive(db, it.id, false, &saErr), qPrintable(saErr));
+        QVERIFY2(RepoItems(db).setActive(it.id, false, &saErr), qPrintable(saErr));
 
-        QCOMPARE(RepoItems::listAll(db, /*includeInactive=*/false).size(), 0);
-        QCOMPARE(RepoItems::listAll(db, /*includeInactive=*/true).size(), 1);
+        QCOMPARE(RepoItems(db).listAll(/*includeInactive=*/false).size(), 0);
+        QCOMPARE(RepoItems(db).listAll(/*includeInactive=*/true).size(), 1);
     }
     closeAndRemove(conn);
 }
@@ -161,10 +161,10 @@ void TestRepos::listAllOrderedByAd()
             it.ad = ad;
             it.birim = QStringLiteral("adet");
             QString e;
-            QVERIFY2(RepoItems::add(db, it, &e), qPrintable(e));
+            QVERIFY2(RepoItems(db).add(it, &e), qPrintable(e));
         }
 
-        const QVector<Item> liste = RepoItems::listAll(db);
+        const QVector<Item> liste = RepoItems(db).listAll();
         QCOMPARE(liste.size(), 3);
         QCOMPARE(liste[0].ad, QStringLiteral("Ahşap"));
         QCOMPARE(liste[1].ad, QStringLiteral("Boya"));
@@ -196,13 +196,13 @@ void TestRepos::csvRoundTripPreservesTurkishChars()
         QString catErr;
         it1.categoryId = 0; // add() ile doğrudan kategori adı verilemez; CSV yolunu test ediyoruz
         QString e1;
-        QVERIFY2(RepoItems::add(dbA, it1, &e1), qPrintable(e1));
+        QVERIFY2(RepoItems(dbA).add(it1, &e1), qPrintable(e1));
 
         // Kategoriyi CSV üzerinden dolaylı test etmek için ikinci kalemi
         // doğrudan importCsv ile ekleyip ardından dışa aktaracağız — bu
         // yüzden burada sadece birinci kalemi elle ekledik.
         QString expErr;
-        csv = RepoItems::exportCsv(dbA, &expErr);
+        csv = RepoItems(dbA).exportCsv(&expErr);
         QVERIFY2(!csv.isEmpty(), qPrintable(expErr));
         QVERIFY(csv.contains(QStringLiteral("İşçilik")));
     }
@@ -211,9 +211,9 @@ void TestRepos::csvRoundTripPreservesTurkishChars()
     {
         QSqlDatabase dbB = QSqlDatabase::database(connB);
         QString impErr;
-        QVERIFY2(RepoItems::importCsv(dbB, csv, &impErr), qPrintable(impErr));
+        QVERIFY2(RepoItems(dbB).importCsv(csv, &impErr), qPrintable(impErr));
 
-        const QVector<Item> liste = RepoItems::listAll(dbB);
+        const QVector<Item> liste = RepoItems(dbB).listAll();
         QCOMPARE(liste.size(), 1);
         QCOMPARE(liste.first().kod, QStringLiteral("ISC-01"));
         QCOMPARE(liste.first().ad, QStringLiteral("İşçilik")); // Türkçe karakter korunmuş
@@ -239,7 +239,7 @@ void TestRepos::csvSharedCategoryNameNotDuplicated()
             "K2,Kalem İki,adet,\"20,00\",İşçilik Kalemleri\n");
 
         QString impErr;
-        QVERIFY2(RepoItems::importCsv(db, csv, &impErr), qPrintable(impErr));
+        QVERIFY2(RepoItems(db).importCsv(csv, &impErr), qPrintable(impErr));
 
         QSqlQuery q(db);
         QVERIFY(q.exec(QStringLiteral("SELECT COUNT(*) FROM categories WHERE ad = 'İşçilik Kalemleri'")));
@@ -265,7 +265,7 @@ void TestRepos::csvMalformedRowLeavesDbUnchanged()
         mevcut.ad = QStringLiteral("Zaten Var Olan");
         mevcut.birim = QStringLiteral("adet");
         QString addErr;
-        QVERIFY2(RepoItems::add(db, mevcut, &addErr), qPrintable(addErr));
+        QVERIFY2(RepoItems(db).add(mevcut, &addErr), qPrintable(addErr));
 
         // İkinci satırda "kategori" sütunu eksik (4 sütun, 5 bekleniyor).
         const QString bozukCsv = QStringLiteral(
@@ -274,12 +274,12 @@ void TestRepos::csvMalformedRowLeavesDbUnchanged()
             "K2,Kalem İki,adet,\"20,00\"\n");
 
         QString impErr;
-        QVERIFY(!RepoItems::importCsv(db, bozukCsv, &impErr));
+        QVERIFY(!RepoItems(db).importCsv(bozukCsv, &impErr));
         QVERIFY(!impErr.isEmpty());
 
         // Veritabanı değişmemiş: sadece başlangıçtaki tek kalem var,
         // bozuk CSV'nin ilk (geçerli) satırı bile eklenmemiş.
-        const QVector<Item> liste = RepoItems::listAll(db, /*includeInactive=*/true);
+        const QVector<Item> liste = RepoItems(db).listAll(/*includeInactive=*/true);
         QCOMPARE(liste.size(), 1);
         QCOMPARE(liste.first().kod, QStringLiteral("VAR-01"));
     }

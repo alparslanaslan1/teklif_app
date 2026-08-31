@@ -6,6 +6,7 @@
 #include <QSqlQuery>
 
 #include <algorithm>
+#include <utility>
 
 namespace {
 
@@ -31,13 +32,15 @@ Customer customerFromQuery(const QSqlQuery &q)
 
 } // namespace
 
+RepoCustomers::RepoCustomers(QSqlDatabase db) : m_db(std::move(db)) {}
+
 
 // Yeni müşteri ekler. Başarılıysa customer.id, veritabanının verdiği id ile
 // doldurulur — parametre bu yüzden referanstır.
 // olusturma sütunu INSERT'e konmaz; şemadaki DEFAULT (datetime('now')) devreye girer.
-bool RepoCustomers::add(QSqlDatabase &db, Customer &customer, QString *errorOut)
+bool RepoCustomers::add(Customer &customer, QString *errorOut)
 {
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     q.prepare(QStringLiteral(
         "INSERT INTO customers (unvan, yetkili, telefon, email, adres, vergi_dairesi, vergi_no, notlar, aktif) "
         "VALUES (:unvan, :yetkili, :telefon, :email, :adres, :vd, :vn, :notlar, :aktif)"));
@@ -65,11 +68,10 @@ bool RepoCustomers::add(QSqlDatabase &db, Customer &customer, QString *errorOut)
 // Müşterileri unvana göre alfabetik sıralı döner; teklif ekranındaki müşteri
 // açılır listesini besler.
 //   includeInactive : false ise (varsayılan) pasif müşteriler listeye girmez
-QVector<Customer> RepoCustomers::listAll(QSqlDatabase &db, bool includeInactive,
-                                          QString *errorOut)
+QVector<Customer> RepoCustomers::listAll(bool includeInactive, QString *errorOut) const
 {
     QVector<Customer> sonuc;
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
 
     // ORDER BY YOK — sıralama Türkçe alfabeye göre C++ tarafında yapılır
     // (bkz. RepoItems::listAll üzerindeki not).
