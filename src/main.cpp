@@ -1,15 +1,12 @@
-#include "ui/page_quote.h"
-
-#include "core/version.h"
+#include "ui/mainwindow.h"
 
 #include "core/db.h"
 #include "core/settings.h"
+#include "core/version.h"
 
 #include <QApplication>
-#include <QMainWindow>
 #include <QMessageBox>
 #include <QSqlDatabase>
-
 
 // Programın giriş noktası: veritabanını açar, ana pencereyi kurar ve olay
 // döngüsünü başlatır.
@@ -18,14 +15,12 @@
 // veritabanı yolunu bu iki değerden türetir.
 //   db     : openAndMigrate'in AÇTIĞI bağlantı, adıyla ("teklif") geri alınır —
 //            burada yeni bir bağlantı açılmaz
-//   window : ana pencere
-//   page   : teklif ekranı. Heap'te oluşturulup setCentralWidget ile pencereye
-//            verilir; sahipliğini QMainWindow alır, elle delete gerekmez.
+//   firma  : belge antetindeki bilgiler; ayarlardan okunur, girilmemişse boş
+//            kalır ve DocumentLayout antetı kendiliğinden kısaltır
+//   window : ana pencere. Sayfaları kendisi kurar ve birbirine bağlar.
 // app.exec() olay döngüsüdür ve pencere kapanana kadar geri dönmez.
 int main(int argc, char *argv[])
 {
-    // QStandardPaths::AppDataLocation bu ikisine bağlıdır (Db::defaultPath
-    // yorumuna bkz.) — veritabanı yolu hesaplanmadan önce ayarlanmalı.
     QCoreApplication::setOrganizationName(QStringLiteral("OzYapi"));
     QCoreApplication::setApplicationName(QStringLiteral("Teklif"));
 
@@ -37,16 +32,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Db::openAndMigrate varsayılan bağlantı adı "teklif"dir.
     QSqlDatabase db = QSqlDatabase::database(QStringLiteral("teklif"));
 
-    QMainWindow window;
-    window.setWindowTitle(QStringLiteral("Teklif %1").arg(QStringLiteral(APP_VERSION)));
-    window.resize(1100, 720);
-
-    // Belge anteti ayarlardan doldurulur. Ayarlar ekranı (Part 7) gelene
-    // kadar bu alanlar boş olabilir; DocumentLayout boş alan için yer
-    // ayırmadığından antet kendiliğinden kısalır, bozulmaz.
     Settings settings(db);
     CompanyInfo firma;
     firma.unvan = settings.valueOr(Settings::keyCompanyName());
@@ -56,11 +43,10 @@ int main(int argc, char *argv[])
     firma.vergiDairesi = settings.valueOr(Settings::keyCompanyTaxOffice());
     firma.vergiNo = settings.valueOr(Settings::keyCompanyTaxNo());
 
-    auto *page = new PageQuote(db, &window);
-    page->setCompanyInfo(firma);
-    page->reloadCustomers();
-    page->reloadCatalog();
-    window.setCentralWidget(page);
+    MainWindow window(db);
+    window.setWindowTitle(QStringLiteral("Teklif %1").arg(QStringLiteral(APP_VERSION)));
+    window.setCompanyInfo(firma);
+    window.resize(1200, 780);
     window.show();
 
     return app.exec();

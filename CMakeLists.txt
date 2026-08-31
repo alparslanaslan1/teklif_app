@@ -119,6 +119,14 @@ add_library(teklif_ui STATIC
     src/ui/quote_table_view.cpp
     src/ui/page_quote.h
     src/ui/page_quote.cpp
+    src/ui/quote_summary_model.h
+    src/ui/quote_summary_model.cpp
+    src/ui/page_archive.h
+    src/ui/page_archive.cpp
+    src/ui/page_customers.h
+    src/ui/page_customers.cpp
+    src/ui/mainwindow.h
+    src/ui/mainwindow.cpp
 )
 target_link_libraries(teklif_ui PUBLIC teklif_core teklif_print Qt6::Widgets)
 

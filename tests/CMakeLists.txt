@@ -56,6 +56,7 @@ add_teklif_ui_test(test_item_search)
 add_teklif_ui_test(test_dlg_line_entry)
 add_teklif_ui_test(test_quote_table_view)
 add_teklif_ui_test(test_page_quote)
+add_teklif_ui_test(test_page_archive)
 
 add_teklif_update_test(test_updater)
 
