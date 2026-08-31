@@ -60,6 +60,8 @@ add_library(teklif_core STATIC
     src/core/numtowords.h
     src/core/numtowords.cpp
     src/core/models.h
+    src/core/quote_status.h
+    src/core/quote_status.cpp
     src/core/search.h
     src/core/search.cpp
     src/core/csv.h

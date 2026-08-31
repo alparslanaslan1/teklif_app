@@ -1,7 +1,9 @@
 #include "repo_quotes.h"
 
+#include "quote_status.h"
 #include "settings.h"
 #include "transaction.h"
+#include "turkish.h"
 
 #include <QSqlError>
 #include <QSqlQuery>
@@ -256,4 +258,145 @@ std::optional<Quote> RepoQuotes::get(qint64 id, QString *errorOut) const
     }
 
     return quote;
+}
+
+QVector<QuoteSummary> RepoQuotes::list(const QuoteFilter &filtre, QString *errorOut) const
+{
+    QVector<QuoteSummary> sonuc;
+
+    // Müşteri unvanı JOIN ile gelir: liste satırı başına ayrı sorgu atmak
+    // (N+1) 500 teklifte 501 sorgu demekti.
+    // LEFT JOIN, INNER değil — müşterisi bir şekilde kaybolmuş bir teklif
+    // listeden düşmemeli, unvansız görünmeli.
+    QString sql = QStringLiteral(
+        "SELECT q.id, q.teklif_no, q.customer_id, q.tarih, q.durum, q.genel_toplam, "
+        "       q.proje_basligi, c.unvan AS musteri_unvan "
+        "FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id WHERE 1=1");
+
+    if (filtre.customerId != 0)
+        sql += QStringLiteral(" AND q.customer_id = :cust");
+    // tarih ISO metni ("2026-08-25") olarak saklandığı için metin
+    // karşılaştırması kronolojik sırayla birebir örtüşür; ayrı bir tarih
+    // dönüşümüne gerek yoktur. Sınırlar DAHİLDİR (>=, <=).
+    if (filtre.tarihBaslangic.isValid())
+        sql += QStringLiteral(" AND q.tarih >= :bas");
+    if (filtre.tarihBitis.isValid())
+        sql += QStringLiteral(" AND q.tarih <= :bit");
+    if (!filtre.durum.isEmpty())
+        sql += QStringLiteral(" AND q.durum = :durum");
+
+    // En yeni önce; aynı tarihte birden fazla teklif varsa numaraya göre.
+    sql += QStringLiteral(" ORDER BY q.tarih DESC, q.teklif_no DESC");
+
+    QSqlQuery q(m_db);
+    q.prepare(sql);
+    if (filtre.customerId != 0)
+        q.bindValue(QStringLiteral(":cust"), filtre.customerId);
+    if (filtre.tarihBaslangic.isValid())
+        q.bindValue(QStringLiteral(":bas"), filtre.tarihBaslangic.toString(Qt::ISODate));
+    if (filtre.tarihBitis.isValid())
+        q.bindValue(QStringLiteral(":bit"), filtre.tarihBitis.toString(Qt::ISODate));
+    if (!filtre.durum.isEmpty())
+        q.bindValue(QStringLiteral(":durum"), filtre.durum);
+
+    if (!q.exec()) {
+        if (errorOut)
+            *errorOut = q.lastError().text();
+        return sonuc;
+    }
+
+    // Metin araması SQL'de DEĞİL burada: LIKE Türkçe harfleri katlayamaz,
+    // "sukru" yazan kullanıcı "Şükrü"yü bulamazdı (bkz. core/turkish.h).
+    const QString anahtar = turkishSearchNormalize(filtre.aranan.trimmed());
+
+    while (q.next()) {
+        QuoteSummary s;
+        s.id = q.value(QStringLiteral("id")).toLongLong();
+        s.teklifNo = q.value(QStringLiteral("teklif_no")).toString();
+        s.customerId = q.value(QStringLiteral("customer_id")).toLongLong();
+        s.customerUnvan = q.value(QStringLiteral("musteri_unvan")).toString();
+        s.tarih = QDate::fromString(q.value(QStringLiteral("tarih")).toString(), Qt::ISODate);
+        s.durum = q.value(QStringLiteral("durum")).toString();
+        s.genelToplam = Money(q.value(QStringLiteral("genel_toplam")).toLongLong());
+
+        if (!anahtar.isEmpty()) {
+            const QString alan = turkishSearchNormalize(
+                s.teklifNo + QLatin1Char(' ') + s.customerUnvan + QLatin1Char(' ')
+                + q.value(QStringLiteral("proje_basligi")).toString());
+            if (!alan.contains(anahtar))
+                continue;
+        }
+        sonuc.append(s);
+    }
+    return sonuc;
+}
+
+bool RepoQuotes::setStatus(qint64 id, const QString &durum, QString *errorOut)
+{
+    // Bilinmeyen bir durum metni veritabanına girerse arşiv filtresi onu
+    // hiçbir zaman göstermez; yazarken doğrulamak tek koruma.
+    if (!QuoteStatus::isValid(durum)) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Geçersiz teklif durumu: %1").arg(durum);
+        return false;
+    }
+
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "UPDATE quotes SET durum=:durum, guncelleme=datetime('now') WHERE id=:id"));
+    q.bindValue(QStringLiteral(":durum"), durum);
+    q.bindValue(QStringLiteral(":id"), id);
+
+    if (!q.exec()) {
+        if (errorOut)
+            *errorOut = q.lastError().text();
+        return false;
+    }
+    if (q.numRowsAffected() == 0) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Teklif bulunamadı (id %1).").arg(id);
+        return false;
+    }
+    return true;
+}
+
+std::optional<Quote> RepoQuotes::duplicate(qint64 id, QString *errorOut)
+{
+    const auto kaynak = get(id, errorOut);
+    if (!kaynak.has_value())
+        return std::nullopt;
+
+    Quote kopya = kaynak.value();
+
+    // Kopya YENİ bir belgedir: kimliği, numarası ve tarihi kendisinin olur.
+    // add() içinde numara sayaçla aynı transaction'da atanır.
+    kopya.id = 0;
+    kopya.teklifNo.clear();
+    kopya.tarih = QDate::currentDate();
+    kopya.durum = QuoteStatus::taslak();
+
+    // Satır kimlikleri de sıfırlanır; aksi halde insertLines kaynak satırların
+    // id'leriyle yazmaya çalışırdı.
+    for (QuoteLine &l : kopya.satirlar)
+        l.id = 0;
+
+    if (!add(kopya, errorOut))
+        return std::nullopt;
+
+    return kopya;
+}
+
+Money RepoQuotes::customerTotal(qint64 customerId, QString *errorOut) const
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "SELECT COALESCE(SUM(genel_toplam), 0) FROM quotes WHERE customer_id = :id"));
+    q.bindValue(QStringLiteral(":id"), customerId);
+
+    if (!q.exec() || !q.next()) {
+        if (errorOut)
+            *errorOut = q.lastError().text();
+        return Money(0);
+    }
+    return Money(q.value(0).toLongLong());
 }

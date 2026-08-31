@@ -49,6 +49,7 @@ add_teklif_test(test_repo_quotes)
 add_teklif_test(test_turkish)
 add_teklif_test(test_transaction)
 add_teklif_test(test_settings)
+add_teklif_test(test_archive)
 
 add_teklif_ui_test(test_quote_line_model)
 add_teklif_ui_test(test_item_search)

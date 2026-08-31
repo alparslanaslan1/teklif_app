@@ -2,9 +2,22 @@
 
 #include "models.h"
 
+#include <QDate>
 #include <QSqlDatabase>
 #include <QString>
+#include <QVector>
 #include <optional>
+
+// Arşiv listesini daraltan ölçütler. Boş/geçersiz bırakılan her alan
+// "bu ölçüte bakma" anlamına gelir, ayrı bir "etkin mi" bayrağı gerekmez.
+struct QuoteFilter
+{
+    qint64 customerId = 0;   // 0 = tüm müşteriler
+    QDate tarihBaslangic;    // geçersiz = alt sınır yok
+    QDate tarihBitis;        // geçersiz = üst sınır yok. Sınır tarihleri DAHİLDİR.
+    QString durum;           // boş = tüm durumlar
+    QString aranan;          // teklif no, müşteri unvanı ve proje başlığında arar
+};
 
 // quotes + quote_lines tablolarının deposu.
 //
@@ -31,6 +44,23 @@ public:
     // id'ye ait teklifi başlığı ve tüm satırlarıyla (sira'ya göre sıralı)
     // birlikte döner. Bulunamazsa veya hata olursa std::nullopt.
     std::optional<Quote> get(qint64 id, QString *errorOut = nullptr) const;
+
+    // Arşiv listesi: filtreye uyan teklifleri, en yeni tarih önce olacak
+    // şekilde döner. Satırlar YÜKLENMEZ (bkz. QuoteSummary).
+    QVector<QuoteSummary> list(const QuoteFilter &filtre, QString *errorOut = nullptr) const;
+
+    // Teklifin durumunu değiştirir (Taslak -> Gönderildi -> ...).
+    // Bilinmeyen bir durum metni reddedilir (bkz. quote_status.h).
+    bool setStatus(qint64 id, const QString &durum, QString *errorOut = nullptr);
+
+    // Var olan teklifi KOPYALAYARAK yeni bir teklif oluşturur.
+    // Yeni teklif: yeni numara, BUGÜNÜN tarihi, durum Taslak; satırlar,
+    // fiyatlar ve notlar aynen kopyalanır. Orijinal hiç değişmez.
+    // En sık kullanılan özellik: geçen yılki teklifi çoğaltıp fiyat güncellemek.
+    std::optional<Quote> duplicate(qint64 id, QString *errorOut = nullptr);
+
+    // Müşterinin tüm tekliflerinin genel toplamı — müşteri kartında gösterilir.
+    Money customerTotal(qint64 customerId, QString *errorOut = nullptr) const;
 
 private:
     QSqlDatabase m_db;

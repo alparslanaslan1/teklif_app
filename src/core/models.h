@@ -83,6 +83,24 @@ struct Quote
     QVector<QuoteLine> satirlar;
 };
 
+// Arşiv/teklif listesi için hafif özet.
+//
+// NEDEN AYRI BİR YAPI: liste ekranı yüzlerce teklif gösterir ama hiçbirinin
+// satırlarına ihtiyaç duymaz. Quote'u kullanmak her satır için quote_lines
+// sorgusu açmak (N+1) ya da hiç kullanılmayacak veriyi belleğe almak
+// demekti. customerUnvan tek bir JOIN ile gelir; müşteri adı için satır
+// başına ayrı sorgu atılmaz.
+struct QuoteSummary
+{
+    qint64 id = 0;
+    QString teklifNo;
+    qint64 customerId = 0;
+    QString customerUnvan;
+    QDate tarih;
+    QString durum;
+    Money genelToplam;
+};
+
 // Belge antetinde (yazdırma/PDF) kullanılan firma bilgisi. Part 7'de
 // Ayarlar ekranından/veritabanından (settings tablosu) doldurulacak;
 // şimdilik çağıran taraf elle verir. Logo BİLEREK yok — henüz hiçbir
