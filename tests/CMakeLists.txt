@@ -60,6 +60,7 @@ add_teklif_ui_test(test_page_quote)
 add_teklif_ui_test(test_page_archive)
 add_teklif_ui_test(test_page_catalog)
 add_teklif_ui_test(test_page_settings)
+add_teklif_ui_test(test_first_run)
 
 add_teklif_update_test(test_updater)
 

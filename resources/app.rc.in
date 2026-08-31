@@ -1,0 +1,36 @@
+// Windows kaynak dosyası. CMake tarafından app.rc.in'den ÜRETİLİR —
+// elle düzenlemeyin; sürüm bilgisi CMakeLists'teki TEKLIF_VERSION'dan gelir.
+//
+// İki iş yapar:
+//   1. exe'nin simgesini gömer (Gezgin'de ve görev çubuğunda görünen)
+//   2. Dosya özelliklerindeki "Ayrıntılar" sekmesini doldurur — kullanıcı
+//      hangi sürümü çalıştırdığını programı açmadan görebilir, destek
+//      istenirken işe yarar.
+
+IDI_ICON1 ICON "@TEKLIF_ICON_PATH@"
+
+1 VERSIONINFO
+FILEVERSION    @TEKLIF_VERSION_RC@
+PRODUCTVERSION @TEKLIF_VERSION_RC@
+FILEOS         0x40004L
+FILETYPE       0x1L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        // 041f = Türkçe, 04b0 = Unicode
+        BLOCK "041f04b0"
+        BEGIN
+            VALUE "CompanyName",      "@TEKLIF_PUBLISHER@"
+            VALUE "FileDescription",  "Teklif ve sözleşme hazırlama programı"
+            VALUE "FileVersion",      "@TEKLIF_VERSION@"
+            VALUE "InternalName",     "teklif_app"
+            VALUE "OriginalFilename", "teklif_app.exe"
+            VALUE "ProductName",      "Teklif"
+            VALUE "ProductVersion",   "@TEKLIF_VERSION@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x41f, 1200
+    END
+END

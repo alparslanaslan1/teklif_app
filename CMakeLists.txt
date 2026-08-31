@@ -37,6 +37,14 @@ configure_file(
     "${CMAKE_BINARY_DIR}/generated/core/version.h"
     @ONLY)
 
+# Yayıncı adı; installer ve exe özelliklerinde görünür.
+set(TEKLIF_PUBLISHER "Karasu Vizyon Doğalgaz" CACHE STRING "Yayıncı adı")
+
+# VERSIONINFO virgülle ayrılmış DÖRT sayı ister ("0,1,0,0"); TEKLIF_VERSION
+# ise noktalı üç parçadır. Dördüncü alan build numarası olarak 0 bırakılır.
+string(REPLACE "." "," TEKLIF_VERSION_RC "${TEKLIF_VERSION}")
+set(TEKLIF_VERSION_RC "${TEKLIF_VERSION_RC},0")
+
 message(STATUS "TeklifApp sürüm ${TEKLIF_VERSION} (${TEKLIF_GIT_SHA})")
 
 
@@ -133,6 +141,8 @@ add_library(teklif_ui STATIC
     src/ui/page_catalog.cpp
     src/ui/theme.h
     src/ui/theme.cpp
+    src/ui/dlg_first_run.h
+    src/ui/dlg_first_run.cpp
     src/ui/page_settings.h
     src/ui/page_settings.cpp
     src/ui/mainwindow.h
@@ -140,8 +150,28 @@ add_library(teklif_ui STATIC
 )
 target_link_libraries(teklif_ui PUBLIC teklif_core teklif_print Qt6::Widgets)
 
-add_executable(teklif_app src/main.cpp)
+# ---------------------------------------------------------------------------
+# Uygulama. Windows'ta simge ve sürüm bilgisi bir kaynak (.rc) dosyasıyla
+# exe'ye gömülür; diğer platformlarda bu adım atlanır.
+# ---------------------------------------------------------------------------
+set(TEKLIF_APP_SOURCES src/main.cpp)
+
+if(WIN32)
+    set(TEKLIF_ICON_PATH "${CMAKE_SOURCE_DIR}/resources/teklif.ico")
+    # .rc içinde ters bölü kaçış karakteridir; Windows yolları çevrilmeli.
+    string(REPLACE "\\" "\\\\" TEKLIF_ICON_PATH "${TEKLIF_ICON_PATH}")
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/resources/app.rc.in"
+        "${CMAKE_BINARY_DIR}/generated/app.rc"
+        @ONLY)
+    list(APPEND TEKLIF_APP_SOURCES "${CMAKE_BINARY_DIR}/generated/app.rc")
+endif()
+
+add_executable(teklif_app ${TEKLIF_APP_SOURCES})
 target_link_libraries(teklif_app PRIVATE teklif_ui)
+
+# WIN32_EXECUTABLE: program açılırken arkasında siyah konsol penceresi belirmesin.
+set_target_properties(teklif_app PROPERTIES WIN32_EXECUTABLE ON)
 
 # tests/ hem teklif_core hem teklif_ui hedeflerini kullanır — ikisi de
 # tanımlandıktan SONRA eklenir.

@@ -43,6 +43,10 @@ public:
                 PageSettingsIndex };
     void showPage(Page page);
 
+    // İlk çalıştırma sihirbazı ayarları ve katalogu değiştirmiş olabilir;
+    // açık ekranlar bayat kalmasın diye hepsi yeniden okunur.
+    void reloadAfterFirstRun();
+
 private slots:
     // Arşivden ya da müşteri kartından gelen "bu teklifi aç" isteği.
     void openQuote(qint64 quoteId);

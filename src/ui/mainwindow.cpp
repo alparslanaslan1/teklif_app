@@ -116,6 +116,16 @@ void MainWindow::reloadCompanyInfo()
     m_pageQuote->setCompanyInfo(firma);
 }
 
+void MainWindow::reloadAfterFirstRun()
+{
+    reloadCompanyInfo();
+    m_pageQuote->reloadSettings();
+    m_pageQuote->reloadCatalog();
+    m_pageQuote->reloadCustomers();
+    m_pageCatalog->refresh();
+    m_pageSettings->refresh();
+}
+
 void MainWindow::showPage(Page page)
 {
     m_nav->setCurrentRow(static_cast<int>(page));

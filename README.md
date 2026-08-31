@@ -26,9 +26,11 @@ yapılandırma gerekmez.
 |---|---|
 | `src/core` | İş mantığı. Widgets'e bağımlı **değil**, arayüz açmadan test edilebilir. |
 | `src/update` | Otomatik güncelleme. Yalnızca Network'e bağlı, arayüz içermez. |
-| `src/print` | Baskı/PDF. Ekran ve yazıcı **aynı** yerleşim kodunu kullanır. |
+| `src/print` | Baskı/PDF ve firma logosu. Ekran ve yazıcı **aynı** yerleşim kodunu kullanır. |
 | `src/ui` | Teklif ekranı ve bileşenleri. Core'a bağımlı, tersi değil. |
 | `tests` | Her katman için birim/entegrasyon testleri. |
+| `packaging` | Inno Setup kurulum betiği. |
+| `resources` | Uygulama simgesi ve Windows kaynak şablonu. |
 
 Veritabanı programın kurulu olduğu klasörde **değil**, kullanıcının veri
 dizinindedir (Windows'ta `%APPDATA%\OzYapi\Teklif\teklif.db`). Böylece program
@@ -60,6 +62,34 @@ git push && git push --tags
 3. ZIP'ler ve SHA-256'sını hesaplar
 4. `latest.json` üretir
 5. İkisini GitHub Release'e yükler
+
+## Paketleme ve kurulum
+
+`resources/teklif.ico` uygulama simgesidir; Windows'ta `app.rc` üzerinden
+exe'ye gömülür ve dosya özelliklerindeki sürüm bilgisini de o doldurur.
+
+`packaging/installer.iss` Inno Setup betiğidir. CI bunu `ISCC.exe` ile
+derleyip `TeklifKurulum-<sürüm>.exe` üretir.
+
+Kurulumun iki bilinçli özelliği var:
+
+- **`PrivilegesRequired=lowest`** — yönetici yetkisi olmayan kullanıcı da
+  kurabilir. Bu kipte program `%LOCALAPPDATA%\Programs` altına kurulur;
+  veritabanı zaten `%APPDATA%` altında olduğu için kurulum yeri veriyi
+  etkilemez.
+- **`AppId` asla değişmez** — Windows kurulu sürümü bununla tanır.
+  Değiştirilirse yeni sürüm eskisinin yanına kurulur ve kullanıcıda iki
+  program görünür. Aynı `AppId` sayesinde "üzerine kurulum" (1.3 → 1.4)
+  dosyaları değiştirir, kullanıcı verisine dokunmaz.
+
+Kaldırma işlemi `%APPDATA%` altındaki veritabanını **silmez**: program
+kaldırılıp yeniden kurulsa da teklifler, müşteriler ve ayarlar yerinde kalır.
+
+## İlk çalıştırma
+
+Program ilk açıldığında firma bilgilerini soran ve isteğe bağlı olarak örnek
+katalog kalemleri ekleyen bir sihirbaz gösterilir. Atlanabilir; atlanırsa bir
+daha sorulmaz ve aynı bilgiler Ayarlar/Katalog ekranlarından girilebilir.
 
 ## Otomatik güncelleme nasıl çalışır
 

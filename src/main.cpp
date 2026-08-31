@@ -3,6 +3,7 @@
 #include "core/db.h"
 #include "core/settings.h"
 #include "core/version.h"
+#include "ui/dlg_first_run.h"
 #include "ui/theme.h"
 
 #include <QApplication>
@@ -46,6 +47,16 @@ int main(int argc, char *argv[])
     window.setWindowTitle(QStringLiteral("Teklif %1").arg(QStringLiteral(APP_VERSION)));
     window.resize(1200, 780);
     window.show();
+
+    // İlk çalıştırma sihirbazı ana pencere GÖSTERİLDİKTEN sonra açılır:
+    // arkasında boş bir ekran değil, gerçek program görünsün. Kullanıcı
+    // atlarsa da bir daha sorulmaz.
+    if (FirstRunDialog::shouldShow(settings)) {
+        FirstRunDialog sihirbaz(db, &window);
+        sihirbaz.exec();
+        // Sihirbaz firma bilgisi ve katalog yazmış olabilir; ekranlar tazelenir.
+        window.reloadAfterFirstRun();
+    }
 
     return app.exec();
 }

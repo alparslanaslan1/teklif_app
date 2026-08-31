@@ -2,8 +2,9 @@
 #   1. Windows'ta Release derler, testleri koşar
 #   2. windeployqt ile Qt DLL'lerini yanına toplar (kullanıcıda Qt kurulu değil)
 #   3. ZIP'ler, SHA-256'sını hesaplar
-#   4. latest.json üretir  <-- programdaki updater bu dosyaya bakar
-#   5. İkisini de GitHub Release'e yükler
+#   4. Inno Setup ile installer üretir
+#   5. latest.json üretir  <-- programdaki updater bu dosyaya bakar
+#   6. Hepsini GitHub Release'e yükler
 #
 # Yayınlama akışı:
 #   CMakeLists.txt'de project(... VERSION 0.2.0) güncelle -> commit ->
@@ -61,13 +62,29 @@ jobs:
 
       # latest.json: updater'ın okuduğu manifest. sha256 burada hesaplanır ki
       # kullanıcı indirdiği paketin bozulmadığını doğrulayabilsin.
+      # Inno Setup GitHub runner imajlarında KURULU DEĞİL; chocolatey ile
+      # gelir. windeployqt çıktısını olduğu gibi paketler.
+      - name: Inno Setup kur
+        run: choco install innosetup --no-progress -y
+
+      - name: Installer üret
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=${{ steps.ver.outputs.version }} `
+            /DSourceDir=..\dist\TeklifApp `
+            packaging\installer.iss
+          Get-ChildItem dist -Filter *.exe
+
       - name: latest.json üret
         shell: pwsh
         run: |
-          $ver  = "${{ steps.ver.outputs.version }}"
-          $zip  = "teklif-$ver-win64.zip"
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          $url  = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$zip"
+          $ver = "${{ steps.ver.outputs.version }}"
+          # Updater ZIP'i değil INSTALLER'ı indirir: dosya değiştirme işini
+          # Inno Setup yapar, program yalnızca indirir, doğrular ve çalıştırır.
+          $setup = "dist\TeklifKurulum-$ver.exe"
+          $hash  = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          $url   = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/TeklifKurulum-$ver.exe"
           @{
             version    = $ver
             minVersion = ""
@@ -84,5 +101,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/TeklifKurulum-${{ steps.ver.outputs.version }}.exe
             teklif-${{ steps.ver.outputs.version }}-win64.zip
             latest.json
