@@ -1,47 +1,27 @@
 #include "search.h"
 
+// Arama, iki kovalı bir tarama: aranan metinle BAŞLAYANLAR önce, İÇERENLER
+// sonra. Bu dosyadaki iki uygulama (serbest fonksiyon ve indeks sınıfı) aynı
+// kuralı paylaşır — sonuçların birbirinden ayrışmaması için tek yardımcıya
+// alındı.
+namespace {
 
-// Bir metni arama karşılaştırması için sadeleştirir: tüm Türkçe harfler ASCII
-// karşılığına iner ve her şey küçük harfe çevrilir ("İşçilik" -> "iscilik").
-// Böylece Türkçe klavyesi olmayan kullanıcı "is" yazınca da kalemi bulur.
-//   s : üzerinde çalışılan kopya
-// 'İ' (U+0130) toLower()'dan ÖNCE elle 'i' yapılır: Qt'nin varsayılan
-// toLower()'ı onu tek 'i' değil, 'i' + birleşen nokta (iki kod noktası) yapar.
-// Bu çıktı yalnızca eşleştirme içindir; ekranda gösterilecek metin buradan
-// geçirilmez.
-QString turkceAramaNormalize(const QString &metin)
+// Bir kaydın aranan anahtara göre hangi kovaya düştüğünü söyler.
+// Döner: 0 = baştan eşleşiyor, 1 = içinde geçiyor, -1 = eşleşmiyor.
+int eslesmeKovasi(const QString &adNormal, const QString &kodNormal, const QString &anahtar)
 {
-    QString s = metin;
-
-    // 'İ' (U+0130) toLower() ÖNCESİNDE elle katlanır: Qt'nin varsayılan
-    // toLower()'ı bunu 'i' + U+0307 (birleşen nokta) ikilisine çevirir,
-    // tek karakterlik 'i' değil. Ampirik olarak doğrulandı (Qt 6.4.2).
-    s.replace(QChar(0x0130), QChar(u'i'));
-
-    s = s.toLower(); // ASCII 'I'->'i' zaten burada olur; Ş/Ğ/Ü/Ö/Ç sorunsuz küçülür.
-
-    // Kalan Türkçe harfleri ASCII karşılıklarına katla.
-    s.replace(QChar(0x0131), QChar(u'i')); // ı
-    s.replace(QChar(0x015F), QChar(u's')); // ş
-    s.replace(QChar(0x011F), QChar(u'g')); // ğ
-    s.replace(QChar(0x00FC), QChar(u'u')); // ü
-    s.replace(QChar(0x00F6), QChar(u'o')); // ö
-    s.replace(QChar(0x00E7), QChar(u'c')); // ç
-
-    return s;
+    if (adNormal.startsWith(anahtar) || kodNormal.startsWith(anahtar))
+        return 0;
+    if (adNormal.contains(anahtar) || kodNormal.contains(anahtar))
+        return 1;
+    return -1;
 }
 
+} // namespace
 
-// Katalogda arama yapar ve sonuçları alakaya göre sıralar.
-//   anahtar       : normalize edilmiş arama metni. Boşsa boş liste döner —
-//                   arama kutusu boşken listenin tüm katalogla dolmaması için.
-//   bastanEslesen : adı VEYA kodu anahtarla BAŞLAYAN kalemler
-//   icindeGecen   : anahtarı içeren ama onunla başlamayan kalemler
-// İki kova sonda birleştirilir; her biri kendi içinde katalog sırasını korur.
-// Pasif kalemler (it.aktif == false) hiç değerlendirilmez.
 QVector<Item> itemAra(const QVector<Item> &katalog, const QString &aranan)
 {
-    const QString anahtar = turkceAramaNormalize(aranan.trimmed());
+    const QString anahtar = turkishSearchNormalize(aranan.trimmed());
     if (anahtar.isEmpty())
         return {};
 
@@ -52,15 +32,74 @@ QVector<Item> itemAra(const QVector<Item> &katalog, const QString &aranan)
         if (!it.aktif)
             continue;
 
-        const QString ad = turkceAramaNormalize(it.ad);
-        const QString kod = turkceAramaNormalize(it.kod);
-
-        if (ad.startsWith(anahtar) || kod.startsWith(anahtar))
+        const int kova = eslesmeKovasi(turkishSearchNormalize(it.ad),
+                                        turkishSearchNormalize(it.kod), anahtar);
+        if (kova == 0)
             bastanEslesen.append(it);
-        else if (ad.contains(anahtar) || kod.contains(anahtar))
+        else if (kova == 1)
             icindeGecen.append(it);
     }
 
     bastanEslesen += icindeGecen;
     return bastanEslesen;
+}
+
+void ItemSearchIndex::setCatalog(const QVector<Item> &katalog)
+{
+    m_items = katalog;
+
+    m_entries.clear();
+    m_entries.reserve(katalog.size());
+    for (const Item &it : katalog) {
+        Entry e;
+        // Pahalı olan kısım burada, tek seferde yapılır.
+        e.adNormal = turkishSearchNormalize(it.ad);
+        e.kodNormal = turkishSearchNormalize(it.kod);
+        e.aktif = it.aktif;
+        m_entries.append(e);
+    }
+}
+
+QVector<int> ItemSearchIndex::searchIndices(const QString &aranan, int maxResults) const
+{
+    const QString anahtar = turkishSearchNormalize(aranan.trimmed());
+    if (anahtar.isEmpty())
+        return {};
+
+    QVector<int> bastanEslesen;
+    QVector<int> icindeGecen;
+
+    for (int i = 0; i < m_entries.size(); ++i) {
+        const Entry &e = m_entries.at(i);
+        if (!e.aktif)
+            continue;
+
+        const int kova = eslesmeKovasi(e.adNormal, e.kodNormal, anahtar);
+        if (kova == 0)
+            bastanEslesen.append(i);
+        else if (kova == 1)
+            icindeGecen.append(i);
+
+        // Sınır varsa erken çıkış: iki kova birlikte sınıra ulaştıysa daha
+        // fazla taramanın anlamı yok. "Baştan eşleşen" grubu her zaman önce
+        // geldiği için kesme sonucun kalitesini düşürmez.
+        if (maxResults > 0 && bastanEslesen.size() >= maxResults)
+            break;
+    }
+
+    bastanEslesen += icindeGecen;
+    if (maxResults > 0 && bastanEslesen.size() > maxResults)
+        bastanEslesen.resize(maxResults);
+    return bastanEslesen;
+}
+
+QVector<Item> ItemSearchIndex::search(const QString &aranan, int maxResults) const
+{
+    const QVector<int> indeksler = searchIndices(aranan, maxResults);
+
+    QVector<Item> sonuc;
+    sonuc.reserve(indeksler.size());
+    for (const int i : indeksler)
+        sonuc.append(m_items.at(i));
+    return sonuc;
 }

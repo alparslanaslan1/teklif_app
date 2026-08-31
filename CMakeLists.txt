@@ -47,6 +47,12 @@ message(STATUS "TeklifApp sürüm ${TEKLIF_VERSION} (${TEKLIF_GIT_SHA})")
 add_library(teklif_core STATIC
     src/core/money.h
     src/core/money.cpp
+    src/core/turkish.h
+    src/core/turkish.cpp
+    src/core/transaction.h
+    src/core/transaction.cpp
+    src/core/settings.h
+    src/core/settings.cpp
     src/core/db.h
     src/core/db.cpp
     src/core/calculator.h

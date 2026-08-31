@@ -1,20 +1,10 @@
 #include "repo_quotes.h"
 
+#include "settings.h"
+#include "transaction.h"
+
 #include <QSqlError>
 #include <QSqlQuery>
-
-namespace {
-
-
-// Açık transaction'ı geri alır. Bu dosyadaki her hata dalında çağrıldığı için
-// ayrı bir yardımcıya alınmıştır.
-bool rollback(QSqlDatabase &db)
-{
-    QSqlQuery rb(db);
-    return rb.exec(QStringLiteral("ROLLBACK"));
-}
-
-} // namespace
 
 
 // Sıradaki teklif numarasını üretir ve sayacı artırır ("000001", "000002" ...).
@@ -29,42 +19,37 @@ bool rollback(QSqlDatabase &db)
 // 7 haneye taşar; rightJustified minimumu garanti eder, üst sınır koymaz.
 QString RepoQuotes::nextQuoteNumberLocked(QSqlDatabase &db, QString *errorOut)
 {
-    QSqlQuery oku(db);
-    oku.prepare(QStringLiteral("SELECT value FROM settings WHERE key = 'teklif_no_sayac'"));
-    if (!oku.exec()) {
+    // settings tablosuna doğrudan SQL yazmak yerine Settings üzerinden gidilir:
+    // anahtar adı tek yerde tanımlıdır ve teklif deposunun ayarlar şemasını
+    // bilmesi gerekmez.
+    Settings settings(db);
+
+    QString okuErr;
+    const auto mevcutMetin = settings.value(Settings::keyQuoteCounter(), &okuErr);
+    if (!okuErr.isEmpty()) {
         if (errorOut)
-            *errorOut = oku.lastError().text();
+            *errorOut = okuErr;
         return QString();
     }
 
-    qint64 mevcut = 0;
-    if (oku.next())
-        mevcut = oku.value(0).toLongLong();
+    // Anahtar yoksa bu ilk tekliftir; sayaç 0'dan başlar.
+    bool ok = true;
+    const qint64 mevcut = mevcutMetin.has_value() ? mevcutMetin->toLongLong(&ok) : 0;
+    if (!ok) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Teklif no sayacı bozuk: %1").arg(*mevcutMetin);
+        return QString();
+    }
 
     const qint64 sonraki = mevcut + 1;
-
-    QSqlQuery yaz(db);
-    yaz.prepare(QStringLiteral("INSERT INTO settings (key, value) VALUES ('teklif_no_sayac', :v) "
-                                "ON CONFLICT(key) DO UPDATE SET value = :v"));
-    yaz.bindValue(QStringLiteral(":v"), QString::number(sonraki));
-    if (!yaz.exec()) {
-        if (errorOut)
-            *errorOut = yaz.lastError().text();
+    if (!settings.setInt(Settings::keyQuoteCounter(), sonraki, errorOut))
         return QString();
-    }
 
     // 6 haneli sıfır dolgulu; 999.999'u aşınca kendiliğinden 7 haneye
     // taşar (rightJustified minimumu garanti eder, üst sınır koymaz).
     return QString::number(sonraki).rightJustified(6, QLatin1Char('0'));
 }
 
-
-// Bir teklifin tüm satırlarını quote_lines tablosuna yazar; hem add() hem
-// update() bunu kullanır. Açık bir transaction içinde çağrılmalıdır.
-//   q : INSERT döngünün DIŞINDA bir kez hazırlanır, her turda yalnızca
-//       bindValue yapılır
-// tutar, önceden hesaplanmış haliyle yazılır; veritabanı tarafında yeniden
-// hesaplanmaz. Hata durumunda false döner — geri alma çağıran tarafa aittir.
 bool RepoQuotes::insertLines(QSqlDatabase &db, qint64 quoteId, const QVector<QuoteLine> &lines,
                               QString *errorOut)
 {
@@ -104,17 +89,19 @@ bool RepoQuotes::insertLines(QSqlDatabase &db, qint64 quoteId, const QVector<Quo
 // kayıt gerçekten kalıcı olduysa dolar.
 bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
 {
-    QSqlQuery tx(db);
-    tx.exec(QStringLiteral("BEGIN IMMEDIATE"));
-
-    QString numErr;
-    const QString teklifNo = nextQuoteNumberLocked(db, &numErr);
-    if (teklifNo.isEmpty()) {
-        rollback(db);
+    // Transaction RAII: aşağıdaki her erken return otomatik ROLLBACK eder.
+    Transaction tx(db);
+    if (!tx.isActive()) {
         if (errorOut)
-            *errorOut = numErr;
+            *errorOut = tx.lastError();
         return false;
     }
+
+    // Numara üretimi de aynı transaction'ın parçasıdır: sonraki adımlardan
+    // biri başarısız olursa sayaç da geri alınır, numara boşa harcanmaz.
+    const QString teklifNo = nextQuoteNumberLocked(db, errorOut);
+    if (teklifNo.isEmpty())
+        return false;
 
     QSqlQuery ins(db);
     ins.prepare(QStringLiteral(
@@ -135,7 +122,6 @@ bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
     ins.bindValue(QStringLiteral(":genel"), quote.genelToplam.kurus());
 
     if (!ins.exec()) {
-        rollback(db);
         if (errorOut)
             *errorOut = ins.lastError().text();
         return false;
@@ -143,36 +129,26 @@ bool RepoQuotes::add(QSqlDatabase &db, Quote &quote, QString *errorOut)
 
     const qint64 quoteId = ins.lastInsertId().toLongLong();
 
-    QString lineErr;
-    if (!insertLines(db, quoteId, quote.satirlar, &lineErr)) {
-        rollback(db);
-        if (errorOut)
-            *errorOut = lineErr;
+    if (!insertLines(db, quoteId, quote.satirlar, errorOut))
         return false;
-    }
 
-    QSqlQuery commit(db);
-    if (!commit.exec(QStringLiteral("COMMIT"))) {
-        if (errorOut)
-            *errorOut = commit.lastError().text();
+    if (!tx.commit(errorOut))
         return false;
-    }
 
+    // Alanlar yalnızca kayıt gerçekten kalıcı olduysa doldurulur.
     quote.id = quoteId;
     quote.teklifNo = teklifNo;
     return true;
 }
 
-
-// Var olan bir teklifi günceller: başlık alanları UPDATE edilir, satırlar ise
-// silinip yeniden eklenir. Bu en basit doğru yoldur — "hangi eski satır hangi
-// yeni satırla eşleşiyor" belirsizliği hiç ortaya çıkmaz (kullanıcı satır
-// sildi, ekledi ya da sırayı değiştirdiyse fark etmez).
-// Yan etkisi: quote_lines.id değerleri her kaydetmede değişir.
 bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
 {
-    QSqlQuery tx(db);
-    tx.exec(QStringLiteral("BEGIN IMMEDIATE"));
+    Transaction tx(db);
+    if (!tx.isActive()) {
+        if (errorOut)
+            *errorOut = tx.lastError();
+        return false;
+    }
 
     QSqlQuery upd(db);
     upd.prepare(QStringLiteral(
@@ -194,9 +170,17 @@ bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
     upd.bindValue(QStringLiteral(":id"), quote.id);
 
     if (!upd.exec()) {
-        rollback(db);
         if (errorOut)
             *errorOut = upd.lastError().text();
+        return false;
+    }
+
+    // Var olmayan bir id sessizce "başarılı" sayılmamalı: UPDATE 0 satır
+    // etkiler, DELETE 0 satır siler ve satırsız bir teklifte hiçbir şey
+    // patlamadan true dönerdi.
+    if (upd.numRowsAffected() == 0) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Güncellenecek teklif bulunamadı (id %1).").arg(quote.id);
         return false;
     }
 
@@ -204,36 +188,17 @@ bool RepoQuotes::update(QSqlDatabase &db, const Quote &quote, QString *errorOut)
     del.prepare(QStringLiteral("DELETE FROM quote_lines WHERE quote_id=:id"));
     del.bindValue(QStringLiteral(":id"), quote.id);
     if (!del.exec()) {
-        rollback(db);
         if (errorOut)
             *errorOut = del.lastError().text();
         return false;
     }
 
-    QString lineErr;
-    if (!insertLines(db, quote.id, quote.satirlar, &lineErr)) {
-        rollback(db);
-        if (errorOut)
-            *errorOut = lineErr;
+    if (!insertLines(db, quote.id, quote.satirlar, errorOut))
         return false;
-    }
 
-    QSqlQuery commit(db);
-    if (!commit.exec(QStringLiteral("COMMIT"))) {
-        if (errorOut)
-            *errorOut = commit.lastError().text();
-        return false;
-    }
-    return true;
+    return tx.commit(errorOut);
 }
 
-
-// id'ye ait teklifi başlığı ve tüm satırlarıyla birlikte döner; bulunamazsa
-// veya hata olursa std::nullopt.
-//   q  : başlık sorgusu. Tutar sütunları veritabanında kuruş tam sayısıdır,
-//        doğrudan Money(...) ile sarılır.
-//   lq : satır sorgusu. ORDER BY sira, satırların teklifteki sırasını korur.
-// tarih, metinden Qt::ISODate ile QDate'e çözülür.
 std::optional<Quote> RepoQuotes::get(QSqlDatabase &db, qint64 id, QString *errorOut)
 {
     QSqlQuery q(db);
@@ -264,7 +229,14 @@ std::optional<Quote> RepoQuotes::get(QSqlDatabase &db, qint64 id, QString *error
     QSqlQuery lq(db);
     lq.prepare(QStringLiteral("SELECT * FROM quote_lines WHERE quote_id = :id ORDER BY sira"));
     lq.bindValue(QStringLiteral(":id"), id);
-    if (lq.exec()) {
+    // Satır sorgusu başarısız olursa teklifi SATIRSIZ döndürmek, kullanıcıya
+    // "teklifiniz boş" demek olurdu. Hata artık bildiriliyor.
+    if (!lq.exec()) {
+        if (errorOut)
+            *errorOut = lq.lastError().text();
+        return std::nullopt;
+    }
+    {
         while (lq.next()) {
             QuoteLine l;
             l.id = lq.value(QStringLiteral("id")).toLongLong();

@@ -25,8 +25,12 @@ public:
     static bool setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *errorOut);
 
     // includeInactive false ise pasif kalemler listeye girmez. Ada göre
-    // alfabetik sıralı döner.
-    static QVector<Item> listAll(QSqlDatabase &db, bool includeInactive = false);
+    // TÜRKÇE alfabetik sıralı döner (SQL'in BINARY collation'ı Türkçede
+    // yanlış sıralar — bkz. turkish.h).
+    // Sorgu başarısız olursa boş liste döner ve errorOut doldurulur; "katalog
+    // boş" ile "sorgu patladı" birbirinden ayırt edilebilmelidir.
+    static QVector<Item> listAll(QSqlDatabase &db, bool includeInactive = false,
+                                  QString *errorOut = nullptr);
 
     // İçe aktarma ÖNCE tüm satırları doğrular (csv.h), SONRA tek bir
     // transaction içinde ekler; herhangi bir satır (bozuk CSV veya

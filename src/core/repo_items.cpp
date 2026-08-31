@@ -1,9 +1,14 @@
 #include "repo_items.h"
+
 #include "csv.h"
+#include "transaction.h"
+#include "turkish.h"
 
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
+
+#include <algorithm>
 
 namespace {
 
@@ -110,6 +115,14 @@ bool RepoItems::update(QSqlDatabase &db, const Item &item, QString *errorOut)
         }
         return false;
     }
+
+    // Var olmayan bir id ile UPDATE hata vermez, 0 satır etkiler. Kontrol
+    // edilmezse çağıran taraf kaydettiğini sanır.
+    if (q.numRowsAffected() == 0) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Güncellenecek kalem bulunamadı (id %1).").arg(item.id);
+        return false;
+    }
     return true;
 }
 
@@ -130,6 +143,11 @@ bool RepoItems::setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *erro
             *errorOut = q.lastError().text();
         return false;
     }
+    if (q.numRowsAffected() == 0) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Kalem bulunamadı (id %1).").arg(id);
+        return false;
+    }
     return true;
 }
 
@@ -137,23 +155,33 @@ bool RepoItems::setActive(QSqlDatabase &db, qint64 id, bool aktif, QString *erro
 // Katalogdaki kalemleri ada göre alfabetik sıralı döner.
 //   includeInactive : false ise (varsayılan) pasif kalemler listeye girmez
 // Her satır itemFromQuery() ile Item'a çevrilir.
-QVector<Item> RepoItems::listAll(QSqlDatabase &db, bool includeInactive)
+QVector<Item> RepoItems::listAll(QSqlDatabase &db, bool includeInactive, QString *errorOut)
 {
     QVector<Item> sonuc;
     QSqlQuery q(db);
-    const QString sql = includeInactive ? QStringLiteral("SELECT * FROM items ORDER BY ad")
-                                         : QStringLiteral("SELECT * FROM items WHERE aktif=1 ORDER BY ad");
-    if (!q.exec(sql))
+
+    // ORDER BY YOK — sıralama C++ tarafında yapılır. SQLite'ın varsayılan
+    // BINARY collation'ı Türkçede Ç, İ, ı, Ş, Ğ, Ü, Ö ile başlayan kayıtları
+    // Z'den SONRAYA atardı (bkz. turkish.h).
+    const QString sql = includeInactive
+                             ? QStringLiteral("SELECT * FROM items")
+                             : QStringLiteral("SELECT * FROM items WHERE aktif=1");
+    if (!q.exec(sql)) {
+        // Hata artık yutulmuyor: "katalog boş" ile "sorgu patladı" ayırt
+        // edilebilir olmalı.
+        if (errorOut)
+            *errorOut = q.lastError().text();
         return sonuc;
+    }
 
     while (q.next())
         sonuc.append(itemFromQuery(q));
+
+    std::sort(sonuc.begin(), sonuc.end(),
+              turkishLessBy<Item>([](const Item &i) { return i.ad; }));
     return sonuc;
 }
 
-
-// categories tablosunun tamamını id -> ad sözlüğü olarak yükler. CSV dışa
-// aktarımında her kalem için ayrı sorgu atmamak için tek seferde alınır.
 QHash<qint64, QString> RepoItems::categoryNameMap(QSqlDatabase &db)
 {
     QHash<qint64, QString> harita;
@@ -174,18 +202,30 @@ QHash<qint64, QString> RepoItems::categoryNameMap(QSqlDatabase &db)
 //   -1    gerçek hata; çağıran taraf işlemi geri almalıdır
 qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString *errorOut)
 {
-    if (ad.trimmed().isEmpty())
-        return 0;
+    // Baştaki/sondaki boşluklar HER YERDE atılır. Daha önce yalnızca boşluk
+    // kontrolünde trimmed() kullanılıp SELECT/INSERT ham metinle yapılıyordu;
+    // bu yüzden " Boya" ve "Boya" iki ayrı kategori oluyordu.
+    const QString temiz = ad.trimmed();
+    if (temiz.isEmpty())
+        return 0; // kategorisiz — hata değil
 
     QSqlQuery bul(db);
-    bul.prepare(QStringLiteral("SELECT id FROM categories WHERE ad = :ad"));
-    bul.bindValue(QStringLiteral(":ad"), ad);
-    if (bul.exec() && bul.next())
+    // COLLATE NOCASE: "boya" ile "Boya" aynı kategoridir. Kullanıcı CSV'yi
+    // elle düzenlediği için büyük/küçük harf tutarlılığı beklenemez.
+    bul.prepare(QStringLiteral("SELECT id FROM categories WHERE ad = :ad COLLATE NOCASE"));
+    bul.bindValue(QStringLiteral(":ad"), temiz);
+    if (!bul.exec()) {
+        // Sorgu hatasını "bulunamadı" sanıp INSERT denemek yanlış olurdu.
+        if (errorOut)
+            *errorOut = bul.lastError().text();
+        return -1;
+    }
+    if (bul.next())
         return bul.value(0).toLongLong();
 
     QSqlQuery ekle(db);
     ekle.prepare(QStringLiteral("INSERT INTO categories (ad) VALUES (:ad)"));
-    ekle.bindValue(QStringLiteral(":ad"), ad);
+    ekle.bindValue(QStringLiteral(":ad"), temiz);
     if (!ekle.exec()) {
         if (errorOut)
             *errorOut = ekle.lastError().text();
@@ -194,16 +234,9 @@ qint64 RepoItems::categoryIdForName(QSqlDatabase &db, const QString &ad, QString
     return ekle.lastInsertId().toLongLong();
 }
 
-
-// CSV metnini katalog'a aktarır. Önce TÜM satırlar doğrulanır, sonra tek bir
-// transaction içinde eklenir: bozuk bir satır ya da çakışan bir kod varsa tek
-// satır bile eklenmeden hepsi geri alınır.
-//   satirlar : doğrulanmış CSV satırları. Bu noktaya kadar veritabanına hiç
-//              dokunulmamıştır.
-//   catId    : satırın kategori id'si; kategori adı katalogda yoksa
-//              categoryIdForName() tarafından otomatik oluşturulur
 bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *errorOut)
 {
+    // AŞAMA 1 — doğrula. Veritabanına henüz hiç dokunulmaz.
     QString parseErr;
     const QVector<CsvItemRow> satirlar = csvSatirlariniAyristir(csvContent, &parseErr);
     if (!parseErr.isEmpty()) {
@@ -217,19 +250,19 @@ bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *
         return false;
     }
 
-    QSqlQuery tx(db);
-    tx.exec(QStringLiteral("BEGIN IMMEDIATE"));
+    // AŞAMA 2 — yaz. Transaction RAII: her erken return ROLLBACK eder,
+    // tek satır bile yarım kalmaz.
+    Transaction tx(db);
+    if (!tx.isActive()) {
+        if (errorOut)
+            *errorOut = tx.lastError();
+        return false;
+    }
 
     for (const CsvItemRow &s : satirlar) {
-        QString catErr;
-        const qint64 catId = categoryIdForName(db, s.kategoriAdi, &catErr);
-        if (catId < 0) {
-            QSqlQuery rb(db);
-            rb.exec(QStringLiteral("ROLLBACK"));
-            if (errorOut)
-                *errorOut = catErr;
+        const qint64 catId = categoryIdForName(db, s.kategoriAdi, errorOut);
+        if (catId < 0)
             return false;
-        }
 
         Item it;
         it.kod = s.kod;
@@ -240,27 +273,15 @@ bool RepoItems::importCsv(QSqlDatabase &db, const QString &csvContent, QString *
 
         QString addErr;
         if (!add(db, it, &addErr)) {
-            QSqlQuery rb(db);
-            rb.exec(QStringLiteral("ROLLBACK"));
             if (errorOut)
                 *errorOut = QStringLiteral("\"%1\" satırı: %2").arg(s.kod, addErr);
             return false;
         }
     }
 
-    QSqlQuery commit(db);
-    if (!commit.exec(QStringLiteral("COMMIT"))) {
-        if (errorOut)
-            *errorOut = commit.lastError().text();
-        return false;
-    }
-    return true;
+    return tx.commit(errorOut);
 }
 
-
-// Aktif + pasif TÜM kalemleri CSV metnine döker. Pasifler de dışa aktarılır ki
-// dosya tam bir yedek olsun.
-//   kategoriler : id -> ad sözlüğü; kalem başına sorgu atılmasın diye önceden alınır
 QString RepoItems::exportCsv(QSqlDatabase &db, QString *errorOut)
 {
     if (!db.isOpen()) {

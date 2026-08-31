@@ -1,7 +1,11 @@
 #include "repo_customers.h"
 
+#include "turkish.h"
+
 #include <QSqlError>
 #include <QSqlQuery>
+
+#include <algorithm>
 
 namespace {
 
@@ -61,17 +65,27 @@ bool RepoCustomers::add(QSqlDatabase &db, Customer &customer, QString *errorOut)
 // Müşterileri unvana göre alfabetik sıralı döner; teklif ekranındaki müşteri
 // açılır listesini besler.
 //   includeInactive : false ise (varsayılan) pasif müşteriler listeye girmez
-QVector<Customer> RepoCustomers::listAll(QSqlDatabase &db, bool includeInactive)
+QVector<Customer> RepoCustomers::listAll(QSqlDatabase &db, bool includeInactive,
+                                          QString *errorOut)
 {
     QVector<Customer> sonuc;
     QSqlQuery q(db);
+
+    // ORDER BY YOK — sıralama Türkçe alfabeye göre C++ tarafında yapılır
+    // (bkz. RepoItems::listAll üzerindeki not).
     const QString sql = includeInactive
-                             ? QStringLiteral("SELECT * FROM customers ORDER BY unvan")
-                             : QStringLiteral("SELECT * FROM customers WHERE aktif=1 ORDER BY unvan");
-    if (!q.exec(sql))
+                             ? QStringLiteral("SELECT * FROM customers")
+                             : QStringLiteral("SELECT * FROM customers WHERE aktif=1");
+    if (!q.exec(sql)) {
+        if (errorOut)
+            *errorOut = q.lastError().text();
         return sonuc;
+    }
 
     while (q.next())
         sonuc.append(customerFromQuery(q));
+
+    std::sort(sonuc.begin(), sonuc.end(),
+              turkishLessBy<Customer>([](const Customer &c) { return c.unvan; }));
     return sonuc;
 }

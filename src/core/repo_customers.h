@@ -15,7 +15,9 @@ class RepoCustomers
 public:
     static bool add(QSqlDatabase &db, Customer &customer, QString *errorOut);
 
-    // includeInactive false ise pasif müşteriler listeye girmez. Unvana
-    // göre alfabetik sıralı döner.
-    static QVector<Customer> listAll(QSqlDatabase &db, bool includeInactive = false);
+    // includeInactive false ise pasif müşteriler listeye girmez. Unvana göre
+    // TÜRKÇE alfabetik sıralı döner. Sorgu başarısız olursa boş liste döner
+    // ve errorOut doldurulur.
+    static QVector<Customer> listAll(QSqlDatabase &db, bool includeInactive = false,
+                                      QString *errorOut = nullptr);
 };
