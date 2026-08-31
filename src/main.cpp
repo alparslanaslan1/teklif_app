@@ -48,6 +48,11 @@ int main(int argc, char *argv[])
     window.resize(1200, 780);
     window.show();
 
+    // Güncelleme sunucusu. Boş bırakılırsa özellik kapalı kalır; sürüm
+    // yayınlanmaya başlayınca burası doldurulur (bkz. README).
+    window.setupUpdates(QUrl(QStringLiteral(TEKLIF_UPDATE_URL)),
+                         QStringLiteral(APP_VERSION));
+
     // İlk çalıştırma sihirbazı ana pencere GÖSTERİLDİKTEN sonra açılır:
     // arkasında boş bir ekran değil, gerçek program görünsün. Kullanıcı
     // atlarsa da bir daha sorulmaz.

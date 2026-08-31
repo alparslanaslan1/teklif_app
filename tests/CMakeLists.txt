@@ -35,6 +35,7 @@ function(add_teklif_update_test name)
     add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE teklif_update Qt6::Test)
     add_test(NAME ${name} COMMAND ${name})
+    set_tests_properties(${name} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endfunction()
 
 add_teklif_test(test_money)

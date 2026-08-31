@@ -3,6 +3,7 @@
 #include "core/models.h"
 
 #include <QMainWindow>
+#include <QUrl>
 #include <QSqlDatabase>
 
 class QListWidget;
@@ -12,6 +13,7 @@ class PageArchive;
 class PageCustomers;
 class PageCatalog;
 class PageSettings;
+class UpdatePrompt;
 
 // Ana pencere: solda sayfa listesi, sağda seçili sayfa.
 //
@@ -47,6 +49,11 @@ public:
     // açık ekranlar bayat kalmasın diye hepsi yeniden okunur.
     void reloadAfterFirstRun();
 
+    // Güncelleme akışını bağlar. manifestUrl boşsa güncelleme özelliği
+    // tamamen kapalı kalır (menü girdisi de eklenmez) — bu, sunucu adresi
+    // henüz belli değilken programın çalışmasını engellememesi için.
+    void setupUpdates(const QUrl &manifestUrl, const QString &currentVersion);
+
 private slots:
     // Arşivden ya da müşteri kartından gelen "bu teklifi aç" isteği.
     void openQuote(qint64 quoteId);
@@ -60,6 +67,7 @@ private:
     PageCustomers *m_pageCustomers;
     PageCatalog *m_pageCatalog;
     PageSettings *m_pageSettings;
+    UpdatePrompt *m_updatePrompt = nullptr;
 
     void setupUi(QSqlDatabase db);
     // Firma bilgisini ayarlardan okuyup teklif ekranına verir. Hem açılışta

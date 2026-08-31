@@ -2,6 +2,8 @@
 
 #include "update_info.h"
 
+#include "core/settings.h"
+
 #include <QObject>
 #include <QString>
 #include <QUrl>
@@ -49,6 +51,32 @@ public:
     // özet vermek isteğe bağlıdır, ama şiddetle önerilir).
     static bool verifyChecksum(const QString &dosyaYolu, const QString &beklenenSha256,
                                 QString *errorOut);
+
+    // İndirilen kurulum dosyasını çalıştırır ve true dönerse ÇAĞIRAN TARAF
+    // programı hemen kapatmalıdır: installer, çalışan exe'nin üzerine
+    // yazamaz.
+    //
+    // NEDEN INSTALLER, ELLE DOSYA DEĞİŞTİRME DEĞİL: Windows çalışan bir
+    // exe'yi kilitler, bu yüzden program kendi dosyalarını değiştiremez.
+    // Klasik çözüm, ana program kapandıktan sonra dosyaları taşıyan ikinci
+    // bir yardımcı programdır — ama Inno Setup bu işi zaten doğru yapıyor
+    // (sürüm kaydı, kısayollar, kaldırma girdisi, kısmi kurulumdan dönüş).
+    // İkinci bir kopya yazmak, aynı işi daha kötü yapmak olurdu.
+    //
+    // Kurulum SESSİZ kipte (/SILENT) çalışır: kullanıcı zaten onay verdi,
+    // bir daha sihirbaz göstermenin anlamı yok.
+    static bool launchInstaller(const QString &kurulumDosyasi, QString *errorOut = nullptr);
+
+    // Kullanıcı "bu sürümü atla" dedi: bu sürüm bir daha teklif edilmez,
+    // ama daha yenisi çıkarsa yine haber verilir.
+    static bool skipVersion(Settings &settings, const QString &version, QString *errorOut = nullptr);
+
+    // Verilen sürüm kullanıcı tarafından atlandı mı.
+    static bool isVersionSkipped(const Settings &settings, const QString &version);
+
+    // Açılışta otomatik denetim açık mı (varsayılan: açık).
+    static bool isAutoCheckEnabled(const Settings &settings);
+    static bool setAutoCheckEnabled(Settings &settings, bool acik, QString *errorOut = nullptr);
 
 signals:
     // Sunucudaki sürüm çalışandan yeni.

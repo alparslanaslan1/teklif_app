@@ -113,10 +113,21 @@ Akış:
 
 1. `Updater::checkForUpdate()` manifesti çeker (5 sn zaman aşımı)
 2. `compareVersions()` ile sunucudaki sürüm çalışandan yeni mi bakılır
-3. Yeniyse `updateAvailable` sinyali; kullanıcıya sorulur
-4. Onay verilirse paket indirilir ve **SHA-256 doğrulanır**
-5. Yardımcı program devralır: ana program kapanır, dosyalar değiştirilir,
-   program yeniden başlatılır
+3. Yeniyse kullanıcıya sorulur — "Şimdi güncelle", "Daha sonra",
+   "Bu sürümü atla" ve "açılışta denetleme" seçenekleriyle
+4. Onay verilirse **kurulum programı** indirilir ve **SHA-256 doğrulanır**
+5. Kurulum sessiz kipte (`/SILENT`) başlatılır ve program kapanır
+
+**Neden installer, elle dosya değiştirme değil:** Windows çalışan bir exe'yi
+kilitler, program kendi dosyalarını değiştiremez. Klasik çözüm ana program
+kapandıktan sonra dosyaları taşıyan ikinci bir yardımcı programdır — ama Inno
+Setup bunu zaten doğru yapıyor (sürüm kaydı, kısayollar, kaldırma girdisi,
+yarım kalan kurulumdan dönüş). İkinci bir kopya yazmak aynı işi daha kötü
+yapmak olurdu.
+
+Güncelleme adresi derleme zamanında `-DTEKLIF_UPDATE_URL` ile verilir ve
+**yalnızca CI yayın derlemesinde** doldurulur; geliştirme kopyası güncelleme
+aramaz.
 
 **Tasarım kuralı:** güncelleme hiçbir zaman programın açılmasını engellemez.
 İnternet yoksa, sunucu kapalıysa veya manifest bozuksa `checkFailed` yayınlanır

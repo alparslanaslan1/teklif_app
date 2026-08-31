@@ -12,3 +12,8 @@
 
 // Derleme tarihi (UTC, ISO 8601).
 #define APP_BUILD_DATE "@TEKLIF_BUILD_DATE@"
+
+// Güncelleme manifestinin adresi. Boş bırakılırsa güncelleme özelliği
+// tamamen kapalıdır — program çalışır, yalnızca yeni sürüm aramaz.
+// CMake'e -DTEKLIF_UPDATE_URL=... ile geçilir.
+#define TEKLIF_UPDATE_URL "@TEKLIF_UPDATE_URL@"

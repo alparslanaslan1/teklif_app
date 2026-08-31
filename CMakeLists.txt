@@ -37,6 +37,11 @@ configure_file(
     "${CMAKE_BINARY_DIR}/generated/core/version.h"
     @ONLY)
 
+# Güncelleme manifestinin adresi. Varsayılan olarak BOŞ: adres verilmezse
+# program güncelleme aramaz ve menüde ilgili girdi çıkmaz. CI, yayın
+# derlemelerinde bunu GitHub Releases adresiyle doldurur.
+set(TEKLIF_UPDATE_URL "" CACHE STRING "latest.json adresi")
+
 # Yayıncı adı; installer ve exe özelliklerinde görünür.
 set(TEKLIF_PUBLISHER "Karasu Vizyon Doğalgaz" CACHE STRING "Yayıncı adı")
 
@@ -143,12 +148,14 @@ add_library(teklif_ui STATIC
     src/ui/theme.cpp
     src/ui/dlg_first_run.h
     src/ui/dlg_first_run.cpp
+    src/ui/update_prompt.h
+    src/ui/update_prompt.cpp
     src/ui/page_settings.h
     src/ui/page_settings.cpp
     src/ui/mainwindow.h
     src/ui/mainwindow.cpp
 )
-target_link_libraries(teklif_ui PUBLIC teklif_core teklif_print Qt6::Widgets)
+target_link_libraries(teklif_ui PUBLIC teklif_core teklif_print teklif_update Qt6::Widgets)
 
 # ---------------------------------------------------------------------------
 # Uygulama. Windows'ta simge ve sürüm bilgisi bir kaynak (.rc) dosyasıyla

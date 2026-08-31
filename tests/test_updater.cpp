@@ -1,6 +1,9 @@
 #include <QtTest/QtTest>
+#include <QSqlDatabase>
 #include <QTemporaryDir>
 
+#include "core/db.h"
+#include "core/settings.h"
 #include "update/update_info.h"
 #include "update/updater.h"
 
@@ -22,6 +25,21 @@ private slots:
     void checksumMismatchFails();
     void checksumSkippedWhenEmpty();
     void checksumMissingFileFails();
+
+    // --- surum atlama ve otomatik denetim ---
+    void skipVersionSuppressesThatVersion();
+    void newerVersionIsStillOffered();
+    void olderVersionStaysSkipped();
+    void autoCheckDefaultsToOn();
+    void autoCheckCanBeDisabled();
+    void launchInstallerRejectsMissingFile();
+
+private:
+    QTemporaryDir *m_dir = nullptr;
+    QString m_conn;
+    QSqlDatabase m_db;
+    void openDb();
+    void closeDb();
 };
 
 void TestUpdater::compareVersions_test_data()
@@ -190,6 +208,95 @@ void TestUpdater::checksumMissingFileFails()
     QString err;
     QVERIFY(!Updater::verifyChecksum(QStringLiteral("/olmayan/dosya.zip"),
                                       QStringLiteral("abc"), &err));
+    QVERIFY(!err.isEmpty());
+}
+
+void TestUpdater::openDb()
+{
+    m_dir = new QTemporaryDir();
+    QVERIFY(m_dir->isValid());
+    m_conn = QStringLiteral("up_%1").arg(QDateTime::currentMSecsSinceEpoch());
+    QString err;
+    QVERIFY2(Db::openAndMigrate(m_dir->filePath(QStringLiteral("t.db")), &err, m_conn), qPrintable(err));
+    m_db = QSqlDatabase::database(m_conn);
+}
+
+void TestUpdater::closeDb()
+{
+    m_db = QSqlDatabase();
+    QSqlDatabase::database(m_conn).close();
+    QSqlDatabase::removeDatabase(m_conn);
+    delete m_dir;
+    m_dir = nullptr;
+}
+
+void TestUpdater::skipVersionSuppressesThatVersion()
+{
+    openDb();
+    Settings s(m_db);
+    QVERIFY(!Updater::isVersionSkipped(s, QStringLiteral("0.2.0")));
+
+    QString err;
+    QVERIFY2(Updater::skipVersion(s, QStringLiteral("0.2.0"), &err), qPrintable(err));
+    QVERIFY(Updater::isVersionSkipped(s, QStringLiteral("0.2.0")));
+    closeDb();
+}
+
+void TestUpdater::newerVersionIsStillOffered()
+{
+    // "Bu surumu atla" SONSUZA DEK sus demek degil: daha yenisi cikarsa
+    // kullanici yine haberdar edilmeli.
+    openDb();
+    Settings s(m_db);
+    QVERIFY(Updater::skipVersion(s, QStringLiteral("0.2.0")));
+
+    QVERIFY2(!Updater::isVersionSkipped(s, QStringLiteral("0.3.0")),
+             "atlanan surumden yenisi de bastiriliyor");
+    QVERIFY(!Updater::isVersionSkipped(s, QStringLiteral("0.2.1")));
+    // Surum karsilastirmasi sayisal: 0.10.0 > 0.2.0
+    QVERIFY(!Updater::isVersionSkipped(s, QStringLiteral("0.10.0")));
+    closeDb();
+}
+
+void TestUpdater::olderVersionStaysSkipped()
+{
+    openDb();
+    Settings s(m_db);
+    QVERIFY(Updater::skipVersion(s, QStringLiteral("0.3.0")));
+    // Atlanan surumden ESKI bir surum de bastirilir (zaten teklif edilmemeli).
+    QVERIFY(Updater::isVersionSkipped(s, QStringLiteral("0.2.0")));
+    QVERIFY(Updater::isVersionSkipped(s, QStringLiteral("0.3.0")));
+    closeDb();
+}
+
+void TestUpdater::autoCheckDefaultsToOn()
+{
+    // Guncellemeyi kacirmak, gereksiz bir soru gormekten pahali.
+    openDb();
+    Settings s(m_db);
+    QVERIFY2(Updater::isAutoCheckEnabled(s), "otomatik denetim varsayilan olarak kapali");
+    closeDb();
+}
+
+void TestUpdater::autoCheckCanBeDisabled()
+{
+    openDb();
+    Settings s(m_db);
+    QString err;
+    QVERIFY2(Updater::setAutoCheckEnabled(s, false, &err), qPrintable(err));
+    QVERIFY(!Updater::isAutoCheckEnabled(s));
+
+    QVERIFY(Updater::setAutoCheckEnabled(s, true));
+    QVERIFY(Updater::isAutoCheckEnabled(s));
+    closeDb();
+}
+
+void TestUpdater::launchInstallerRejectsMissingFile()
+{
+    // Olmayan bir dosyayi calistirmaya kalkmak yerine anlamli hata donmeli;
+    // aksi halde program kapanir ve kurulum hic baslamaz.
+    QString err;
+    QVERIFY(!Updater::launchInstaller(QStringLiteral("/olmayan/kurulum.exe"), &err));
     QVERIFY(!err.isEmpty());
 }
 

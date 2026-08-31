@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -113,7 +114,9 @@ void Updater::downloadUpdate(const UpdateInfo &info)
         emit downloadFailed(QStringLiteral("Geçici indirme klasörü oluşturulamadı."));
         return;
     }
-    const QString hedef = cacheDir + QStringLiteral("/teklif-%1.zip").arg(info.version);
+    // Uzantı .exe: indirilen şey Inno Setup kurulum programıdır
+    // (bkz. launchInstaller).
+    const QString hedef = cacheDir + QStringLiteral("/TeklifKurulum-%1.exe").arg(info.version);
 
     QNetworkRequest req(info.url);
     req.setHeader(QNetworkRequest::UserAgentHeader,
@@ -199,4 +202,60 @@ bool Updater::verifyChecksum(const QString &dosyaYolu, const QString &beklenenSh
         return false;
     }
     return true;
+}
+
+bool Updater::launchInstaller(const QString &kurulumDosyasi, QString *errorOut)
+{
+    if (!QFile::exists(kurulumDosyasi)) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Kurulum dosyası bulunamadı: %1").arg(kurulumDosyasi);
+        return false;
+    }
+
+    // /SILENT      : sihirbaz gösterme, yalnızca ilerleme çubuğu
+    // /NOCANCEL    : yarıda kesip dosyaları karışık bırakma
+    // /NORESTART   : yeniden başlatma sorma
+    // Inno Setup bu anahtarların hepsini destekler; başka bir installer
+    // kullanılırsa bunlar da değişmelidir.
+    const QStringList argumanlar = {QStringLiteral("/SILENT"), QStringLiteral("/NOCANCEL"),
+                                     QStringLiteral("/NORESTART")};
+
+    // startDetached: kurulum programı BİZDEN BAĞIMSIZ yaşamalı. Çocuk süreç
+    // olarak başlatılsaydı, biz kapanınca o da ölür ve güncelleme yarıda
+    // kalırdı.
+    qint64 pid = 0;
+    if (!QProcess::startDetached(kurulumDosyasi, argumanlar, QString(), &pid)) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Kurulum başlatılamadı: %1").arg(kurulumDosyasi);
+        return false;
+    }
+    return true;
+}
+
+bool Updater::skipVersion(Settings &settings, const QString &version, QString *errorOut)
+{
+    return settings.setValue(Settings::keyUpdateSkipVersion(), version, errorOut);
+}
+
+bool Updater::isVersionSkipped(const Settings &settings, const QString &version)
+{
+    const QString atlanan = settings.valueOr(Settings::keyUpdateSkipVersion());
+    if (atlanan.isEmpty())
+        return false;
+
+    // Atlanan sürümden DAHA YENİ bir sürüm çıkarsa yine haber verilir:
+    // "bu sürümü atla" sonsuza dek sus demek değildir.
+    return compareVersions(version, atlanan) <= 0;
+}
+
+bool Updater::isAutoCheckEnabled(const Settings &settings)
+{
+    // Varsayılan AÇIK: güncellemeyi kaçırmak, gereksiz bir soru görmekten
+    // daha pahalı.
+    return settings.boolValueOr(Settings::keyUpdateCheckEnabled(), true);
+}
+
+bool Updater::setAutoCheckEnabled(Settings &settings, bool acik, QString *errorOut)
+{
+    return settings.setBool(Settings::keyUpdateCheckEnabled(), acik, errorOut);
 }

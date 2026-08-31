@@ -37,9 +37,16 @@ jobs:
           version: '6.6.*'
           cache: true
 
+      # TEKLIF_UPDATE_URL yalnızca YAYIN derlemesinde verilir: geliştirici
+      # makinesinde derlenen bir kopya güncelleme aramaz ve yanlışlıkla
+      # kendini yayın sürümüyle değiştirmez.
+      # Adres "releases/latest/download" olduğu için sabittir; her yayında
+      # değişmez, en son sürümün latest.json'una çözülür.
       - name: Yapılandır ve derle
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTEKLIF_VERSION=${{ steps.ver.outputs.version }}
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release `
+            -DTEKLIF_VERSION=${{ steps.ver.outputs.version }} `
+            -DTEKLIF_UPDATE_URL=https://github.com/${{ github.repository }}/releases/latest/download/latest.json
           cmake --build build --config Release --parallel
 
       - name: Testler

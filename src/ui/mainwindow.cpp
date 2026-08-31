@@ -5,10 +5,14 @@
 #include "page_customers.h"
 #include "page_settings.h"
 #include "theme.h"
+#include "update_prompt.h"
+#include "core/version.h"
 #include "page_quote.h"
 
 #include <QHBoxLayout>
 #include <QListWidget>
+#include <QApplication>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QStackedWidget>
 #include <QWidget>
@@ -114,6 +118,34 @@ void MainWindow::reloadCompanyInfo()
     firma.vergiDairesi = settings.valueOr(Settings::keyCompanyTaxOffice());
     firma.vergiNo = settings.valueOr(Settings::keyCompanyTaxNo());
     m_pageQuote->setCompanyInfo(firma);
+}
+
+void MainWindow::setupUpdates(const QUrl &manifestUrl, const QString &currentVersion)
+{
+    if (manifestUrl.isEmpty())
+        return; // güncelleme yapılandırılmamış
+
+    m_updatePrompt = new UpdatePrompt(m_db, manifestUrl, currentVersion, this);
+
+    // Kurulum başlatıldığında program kapanmalı: installer çalışan exe'nin
+    // üzerine yazamaz.
+    connect(m_updatePrompt, &UpdatePrompt::quitRequested, qApp, &QApplication::quit);
+
+    auto *yardim = menuBar()->addMenu(QStringLiteral("&Yardım"));
+    yardim->addAction(QStringLiteral("Güncellemeleri denetle"), m_updatePrompt,
+                       &UpdatePrompt::checkNow);
+    yardim->addAction(QStringLiteral("Hakkında"), this, [this, currentVersion] {
+        QMessageBox::about(this, QStringLiteral("Hakkında"),
+                            QStringLiteral("<b>Teklif</b><br>Sürüm %1<br><br>"
+                                            "Derleme: %2<br>Kaynak: %3")
+                                .arg(currentVersion, QStringLiteral(APP_BUILD_DATE),
+                                     QStringLiteral(APP_GIT_SHA)));
+    });
+
+    // Açılış denetimi pencere gösterildikten sonra, olay döngüsü
+    // çalışmaya başlayınca yapılır; ağ beklemesi açılışı geciktirmesin.
+    QMetaObject::invokeMethod(m_updatePrompt, &UpdatePrompt::checkOnStartup,
+                               Qt::QueuedConnection);
 }
 
 void MainWindow::reloadAfterFirstRun()
