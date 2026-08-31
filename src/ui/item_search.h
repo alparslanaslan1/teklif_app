@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/models.h"
+#include "core/search.h"
 
 #include <QVector>
 #include <QWidget>
@@ -42,7 +43,9 @@ private slots:
 private:
     QLineEdit *m_edit;
     QListWidget *m_popup;
-    QVector<Item> m_katalog;
+    // Normalize edilmis arama alanlarini bir kez hesaplar; her tus vurusunda
+    // tum katalogu yeniden normalize etmekten kacinir (bkz. core/search.h).
+    ItemSearchIndex m_index;
     QVector<Item> m_sonuc;
     // m_popup->isVisible() GÜVENİLMEZ: bir üst pencere hiç show()
     // edilmemişse (örn. testlerde) Qt bunu her zaman false döndürür,
@@ -50,6 +53,10 @@ private:
     // görünürlüğü tüm ata zincirinin de görünür olmasını gerektirir.
     // Ok tuşları/Enter/Esc bu yüzden ayrı bir mantıksal bayrağa bakar.
     bool m_sonucAcik = false;
+
+    // Cok genel bir aramada ("a") binlerce satirlik liste olusturmamak icin
+    // sonuc sayisi sinirlanir; acilir listede zaten bu kadari gorunmez.
+    static constexpr int kMaxSonuc = 50;
 
     void showResults(const QVector<Item> &sonuc);
     void hideResults();

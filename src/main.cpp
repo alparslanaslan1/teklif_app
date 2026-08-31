@@ -1,6 +1,9 @@
 #include "ui/page_quote.h"
 
+#include "core/version.h"
+
 #include "core/db.h"
+#include "core/settings.h"
 
 #include <QApplication>
 #include <QMainWindow>
@@ -38,10 +41,25 @@ int main(int argc, char *argv[])
     QSqlDatabase db = QSqlDatabase::database(QStringLiteral("teklif"));
 
     QMainWindow window;
-    window.setWindowTitle(QStringLiteral("Teklif"));
+    window.setWindowTitle(QStringLiteral("Teklif %1").arg(QStringLiteral(APP_VERSION)));
     window.resize(1100, 720);
 
+    // Belge anteti ayarlardan doldurulur. Ayarlar ekranı (Part 7) gelene
+    // kadar bu alanlar boş olabilir; DocumentLayout boş alan için yer
+    // ayırmadığından antet kendiliğinden kısalır, bozulmaz.
+    Settings settings(db);
+    CompanyInfo firma;
+    firma.unvan = settings.valueOr(Settings::keyCompanyName());
+    firma.adres = settings.valueOr(Settings::keyCompanyAddress());
+    firma.telefon = settings.valueOr(Settings::keyCompanyPhone());
+    firma.email = settings.valueOr(Settings::keyCompanyEmail());
+    firma.vergiDairesi = settings.valueOr(Settings::keyCompanyTaxOffice());
+    firma.vergiNo = settings.valueOr(Settings::keyCompanyTaxNo());
+
     auto *page = new PageQuote(db, &window);
+    page->setCompanyInfo(firma);
+    page->reloadCustomers();
+    page->reloadCatalog();
     window.setCentralWidget(page);
     window.show();
 

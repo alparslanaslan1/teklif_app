@@ -1,14 +1,23 @@
 #pragma once
 
 #include "core/models.h"
+#include "core/repo_customers.h"
+#include "core/repo_items.h"
+#include "core/repo_quotes.h"
+#include "core/settings.h"
+#include "print/document_layout.h"
 
+#include <QDate>
 #include <QSqlDatabase>
 #include <QWidget>
 
-class QComboBox;
 class QCheckBox;
+class QComboBox;
+class QDateEdit;
 class QLabel;
+class QLineEdit;
 class QPushButton;
+class QSpinBox;
 class ItemSearch;
 class QuoteTableView;
 class QuoteLineModel;
@@ -69,7 +78,13 @@ private slots:
     void deleteCurrentRow();
 
 private:
-    QSqlDatabase m_db;
+    // Depolar bağlantıyı kendi içlerinde tutar; ekran ömrü boyunca bir kez
+    // kurulur, her çağrıda QSqlDatabase taşınmaz (bkz. core/repo_items.h).
+    RepoItems m_repoItems;
+    RepoCustomers m_repoCustomers;
+    RepoQuotes m_repoQuotes;
+    Settings m_settings;
+
     CompanyInfo m_company;
 
     QComboBox *m_customerCombo;
@@ -77,6 +92,9 @@ private:
     QuoteTableView *m_table;
     QuoteLineModel *m_model;
     QCheckBox *m_kdvCheck;
+    QLineEdit *m_projeEdit;
+    QDateEdit *m_tarihEdit;
+    QSpinBox *m_gecerlilikSpin;
     QLabel *m_araLabel;
     QLabel *m_kdvLabel;
     QLabel *m_genelLabel;
@@ -85,10 +103,18 @@ private:
     QPushButton *m_printButton;
     QPushButton *m_pdfButton;
 
+    // Kaydedilmiş teklifin kimliği. 0 = henüz kaydedilmemiş yeni teklif;
+    // save() bu değere bakarak INSERT mi UPDATE mi yapacağına karar verir.
     qint64 m_quoteId = 0;
     QString m_teklifNo;
+    // Kaydedilirken kullanılan KDV oranı. Kutu işaretliyse bu, değilse 0.
+    // Ayarlardan okunur (varsayılan %20), böylece oran tek yerden değişir.
+    int m_kdvOrani = 20;
     QVector<Customer> m_customers; // reloadCustomers() doldurur; currentCustomer() burada arar
 
     void setupUi();
     Customer currentCustomer() const;
+    // Yazdırma ve PDF aynı belge bağlamını kullanır; ikisi de ekrandakiyle
+    // birebir aynı çıktıyı üretsin diye tek yerde kurulur.
+    DocumentContext buildDocumentContext() const;
 };

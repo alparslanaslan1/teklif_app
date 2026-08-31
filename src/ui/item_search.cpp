@@ -39,7 +39,7 @@ ItemSearch::ItemSearch(QWidget *parent) : QWidget(parent)
 
 void ItemSearch::setCatalog(const QVector<Item> &katalog)
 {
-    m_katalog = katalog;
+    m_index.setCatalog(katalog);
 }
 
 void ItemSearch::focusInput()
@@ -49,8 +49,12 @@ void ItemSearch::focusInput()
 
 void ItemSearch::onTextChanged(const QString &text)
 {
-    m_sonuc = itemAra(m_katalog, text);
-    showResults(m_sonuc);
+    m_sonuc = m_index.search(text, kMaxSonuc);
+    // showResults'a m_sonuc'un KOPYASI degil kendisi gecerse, bos sonucta
+    // cagrilan hideResults() onu temizlerken parametreyi de bosaltir.
+    // Erken donuldugu icin bugun zararsiz ama kirilgan; kopya gecmek acik.
+    const QVector<Item> gosterilecek = m_sonuc;
+    showResults(gosterilecek);
 }
 
 void ItemSearch::showResults(const QVector<Item> &sonuc)
