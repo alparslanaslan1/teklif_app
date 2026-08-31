@@ -21,7 +21,7 @@ namespace {
 // olabilir, naif satır bölme o durumda yanlış sonuç verir.
 // Dosya satır sonuyla bitmemişse elde kalan alan/satır için satiriBitir()
 // bir kez daha çağrılır.
-QVector<QVector<QString>> csvTokenize(const QString &icerik)
+QVector<QVector<QString>> csvTokenize(const QString &icerik, QChar ayrac)
 {
     QVector<QVector<QString>> satirlar;
     QVector<QString> satir;
@@ -61,7 +61,7 @@ QVector<QVector<QString>> csvTokenize(const QString &icerik)
             ++i;
             continue;
         }
-        if (c == QLatin1Char(',')) {
+        if (c == ayrac) {
             satir.append(alan);
             alan.clear();
             ++i;
@@ -94,13 +94,38 @@ QVector<QVector<QString>> csvTokenize(const QString &icerik)
 // içindeki tırnaklar ikiye katlanır ("" kaçışı) ve alanın tamamı tırnağa alınır.
 QString csvAlanKac(const QString &alan)
 {
-    if (alan.contains(QLatin1Char(',')) || alan.contains(QLatin1Char('"'))
+    // Fiyat alanı Türkçe biçimde virgül içerir ("1.234,56"); tırnaklanmazsa
+    // virgül ayracıyla yazılan bir dosyada iki sütuna bölünürdü.
+    if (alan.contains(QLatin1Char(',')) || alan.contains(QLatin1Char(';'))
+        || alan.contains(QLatin1Char('"'))
         || alan.contains(QLatin1Char('\n')) || alan.contains(QLatin1Char('\r'))) {
         QString kacan = alan;
         kacan.replace(QLatin1Char('"'), QStringLiteral("\"\""));
         return QLatin1Char('"') + kacan + QLatin1Char('"');
     }
     return alan;
+}
+
+
+// Dosyanın hangi ayracı kullandığını BAŞLIK SATIRINDAN anlar.
+//
+// NEDEN GEREKLİ: Türkçe Windows'ta Excel, listeyi noktalı virgülle ayırır
+// (bölgesel ondalık ayracı virgül olduğu için). Kullanıcı dışa aktardığımız
+// dosyayı Excel'de açıp kaydederse geri gelen dosya ';' ayraçlı olur. Sadece
+// virgül beklersek o dosya tek sütun okunur ve "5 sütun bekleniyordu, 1
+// bulundu" hatası verir.
+//
+// Yalnızca ilk satıra bakılır: başlık ("kod,ad,birim,fiyat,kategori") tırnak
+// içermez, dolayısıyla sayım güvenilirdir. Gövdedeki fiyat alanları virgül
+// içerdiği için tüm dosyayı saymak yanıltıcı olurdu.
+QChar ayraciTespitEt(const QString &icerik)
+{
+    const int satirSonu = icerik.indexOf(QLatin1Char('\n'));
+    const QString ilkSatir = satirSonu < 0 ? icerik : icerik.left(satirSonu);
+
+    return ilkSatir.count(QLatin1Char(';')) > ilkSatir.count(QLatin1Char(','))
+               ? QLatin1Char(';')
+               : QLatin1Char(',');
 }
 
 } // namespace
@@ -119,7 +144,14 @@ QString csvAlanKac(const QString &alan)
 // kod/ad/birim boş olamaz; kategori boş olabilir (= kategorisiz).
 QVector<CsvItemRow> csvSatirlariniAyristir(const QString &icerik, QString *errorOut)
 {
-    const QVector<QVector<QString>> hamSatirlar = csvTokenize(icerik);
+    // Excel'in yazdığı UTF-8 dosyalar BOM (U+FEFF) ile başlar. Temizlenmezse
+    // ilk sütunun adı "\uFEFFkod" olur; başlık atlandığı için bu doğrudan
+    // görünmez ama tırnaklı bir ilk alan bozulurdu.
+    QString temiz = icerik;
+    if (temiz.startsWith(QChar(0xFEFF)))
+        temiz.remove(0, 1);
+
+    const QVector<QVector<QString>> hamSatirlar = csvTokenize(temiz, ayraciTespitEt(temiz));
 
     // Tamamen boş satırları (örn. dosya sonundaki fazladan boş satır, ya da
     // elle düzenlenmiş bir dosyada araya sıkıştış boş satır) yok say —
@@ -206,5 +238,10 @@ QString csvOlustur(const QVector<Item> &kalemler, const QHash<qint64, QString> &
         satirlar << alanlar.join(QLatin1Char(','));
     }
 
-    return satirlar.join(QStringLiteral("\n")) + QStringLiteral("\n");
+    // BOM: Türkçe Windows'ta Excel, BOM'suz bir UTF-8 dosyayı cp1254 sanıp
+    // ş/ğ/ı/İ harflerini bozar. Dosya "Excel'de düzenlenecek" diye
+    // tasarlandığı için bu zorunlu.
+    // CRLF: Windows araçlarının (Not Defteri dahil) beklediği satır sonu.
+    // Kendi ayrıştırıcımız ikisini de zaten kabul ediyor.
+    return QChar(0xFEFF) + satirlar.join(QStringLiteral("\r\n")) + QStringLiteral("\r\n");
 }

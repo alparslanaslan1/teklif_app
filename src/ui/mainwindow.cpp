@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 
 #include "page_archive.h"
+#include "page_catalog.h"
 #include "page_customers.h"
 #include "page_quote.h"
 
@@ -22,6 +23,7 @@ void MainWindow::setupUi(QSqlDatabase db)
     m_nav->setMaximumWidth(180);
     m_nav->addItem(QStringLiteral("Teklif"));
     m_nav->addItem(QStringLiteral("Arşiv"));
+    m_nav->addItem(QStringLiteral("Katalog"));
     m_nav->addItem(QStringLiteral("Müşteriler"));
 
     m_stack = new QStackedWidget(this);
@@ -31,12 +33,15 @@ void MainWindow::setupUi(QSqlDatabase db)
     m_pageQuote->setObjectName(QStringLiteral("pageQuote"));
     m_pageArchive = new PageArchive(db, this);
     m_pageArchive->setObjectName(QStringLiteral("pageArchive"));
+    m_pageCatalog = new PageCatalog(db, this);
+    m_pageCatalog->setObjectName(QStringLiteral("pageCatalog"));
     m_pageCustomers = new PageCustomers(db, this);
     m_pageCustomers->setObjectName(QStringLiteral("pageCustomers"));
 
     // Sıra mainwindow.h'deki Page numaralandırmasıyla AYNI olmalı.
     m_stack->addWidget(m_pageQuote);
     m_stack->addWidget(m_pageArchive);
+    m_stack->addWidget(m_pageCatalog);
     m_stack->addWidget(m_pageCustomers);
 
     connect(m_nav, &QListWidget::currentRowChanged, this, [this](int row) {
@@ -47,6 +52,8 @@ void MainWindow::setupUi(QSqlDatabase db)
         // ya da eklenen müşteri burada görünmelidir.
         if (row == PageArchiveIndex)
             m_pageArchive->refresh();
+        else if (row == PageCatalogIndex)
+            m_pageCatalog->refresh();
         else if (row == PageCustomersIndex)
             m_pageCustomers->refresh();
     });
@@ -59,6 +66,11 @@ void MainWindow::setupUi(QSqlDatabase db)
     // Müşteri eklendiğinde teklif ekranındaki açılır liste bayatlamasın.
     connect(m_pageCustomers, &PageCustomers::customersChanged, this,
             [this] { m_pageQuote->reloadCustomers(); });
+
+    // Katalog değiştiğinde teklif ekranındaki arama indeksi bayatlamasın:
+    // yeni eklenen kalem hemen aranabilir olmalı.
+    connect(m_pageCatalog, &PageCatalog::catalogChanged, this,
+            [this] { m_pageQuote->reloadCatalog(); });
 
     auto *govde = new QWidget(this);
     auto *lay = new QHBoxLayout(govde);

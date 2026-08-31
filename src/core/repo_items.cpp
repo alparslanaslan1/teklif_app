@@ -158,30 +158,88 @@ bool RepoItems::setActive(qint64 id, bool aktif, QString *errorOut)
 // Katalogdaki kalemleri ada göre alfabetik sıralı döner.
 //   includeInactive : false ise (varsayılan) pasif kalemler listeye girmez
 // Her satır itemFromQuery() ile Item'a çevrilir.
-QVector<Item> RepoItems::listAll(bool includeInactive, QString *errorOut) const
+QVector<Item> RepoItems::list(const ItemFilter &filtre, QString *errorOut) const
 {
     QVector<Item> sonuc;
     QSqlQuery q(m_db);
 
-    // ORDER BY YOK — sıralama C++ tarafında yapılır. SQLite'ın varsayılan
-    // BINARY collation'ı Türkçede Ç, İ, ı, Ş, Ğ, Ü, Ö ile başlayan kayıtları
-    // Z'den SONRAYA atardı (bkz. turkish.h).
-    const QString sql = includeInactive
-                             ? QStringLiteral("SELECT * FROM items")
-                             : QStringLiteral("SELECT * FROM items WHERE aktif=1");
-    if (!q.exec(sql)) {
-        // Hata artık yutulmuyor: "katalog boş" ile "sorgu patladı" ayırt
-        // edilebilir olmalı.
+    // ORDER BY YOK — sıralama C++ tarafında yapılır (bkz. turkish.h).
+    QString sql = QStringLiteral("SELECT * FROM items WHERE 1=1");
+    if (!filtre.includeInactive)
+        sql += QStringLiteral(" AND aktif=1");
+    if (filtre.categoryId != 0)
+        sql += QStringLiteral(" AND category_id = :cat");
+
+    q.prepare(sql);
+    if (filtre.categoryId != 0)
+        q.bindValue(QStringLiteral(":cat"), filtre.categoryId);
+
+    if (!q.exec()) {
+        // Hata yutulmuyor: "katalog boş" ile "sorgu patladı" ayırt edilebilmeli.
         if (errorOut)
             *errorOut = q.lastError().text();
         return sonuc;
     }
 
-    while (q.next())
-        sonuc.append(itemFromQuery(q));
+    // Metin araması SQL'de DEĞİL burada: LIKE Türkçe harfleri katlayamaz,
+    // "iscilik" yazan kullanıcı "İşçilik"i bulamazdı (bkz. core/turkish.h).
+    const QString anahtar = turkishSearchNormalize(filtre.aranan.trimmed());
+
+    while (q.next()) {
+        const Item it = itemFromQuery(q);
+        if (!anahtar.isEmpty()) {
+            const QString alan = turkishSearchNormalize(it.ad + QLatin1Char(' ') + it.kod);
+            if (!alan.contains(anahtar))
+                continue;
+        }
+        sonuc.append(it);
+    }
 
     std::sort(sonuc.begin(), sonuc.end(),
               turkishLessBy<Item>([](const Item &i) { return i.ad; }));
+    return sonuc;
+}
+
+QVector<Item> RepoItems::listAll(bool includeInactive, QString *errorOut) const
+{
+    ItemFilter f;
+    f.includeInactive = includeInactive;
+    return list(f, errorOut);
+}
+
+std::optional<Item> RepoItems::get(qint64 id, QString *errorOut) const
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("SELECT * FROM items WHERE id = :id"));
+    q.bindValue(QStringLiteral(":id"), id);
+
+    if (!q.exec()) {
+        if (errorOut)
+            *errorOut = q.lastError().text();
+        return std::nullopt;
+    }
+    if (!q.next()) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Kalem bulunamadı (id %1).").arg(id);
+        return std::nullopt;
+    }
+    return itemFromQuery(q);
+}
+
+QVector<Category> RepoItems::listCategories(QString *errorOut) const
+{
+    QVector<Category> sonuc;
+    QSqlQuery q(m_db);
+    if (!q.exec(QStringLiteral("SELECT id, ad FROM categories"))) {
+        if (errorOut)
+            *errorOut = q.lastError().text();
+        return sonuc;
+    }
+    while (q.next())
+        sonuc.append(Category{q.value(0).toLongLong(), q.value(1).toString()});
+
+    std::sort(sonuc.begin(), sonuc.end(),
+              turkishLessBy<Category>([](const Category &c) { return c.ad; }));
     return sonuc;
 }
 
@@ -203,7 +261,7 @@ QHash<qint64, QString> RepoItems::categoryNameMap() const
 //   > 0   bulunan ya da yeni oluşturulan kategori id'si
 //   == 0  ad boş -> "kategorisiz" (hata değildir)
 //   -1    gerçek hata; çağıran taraf işlemi geri almalıdır
-qint64 RepoItems::categoryIdForName(const QString &ad, QString *errorOut)
+qint64 RepoItems::ensureCategory(const QString &ad, QString *errorOut)
 {
     // Baştaki/sondaki boşluklar HER YERDE atılır. Daha önce yalnızca boşluk
     // kontrolünde trimmed() kullanılıp SELECT/INSERT ham metinle yapılıyordu;
@@ -263,7 +321,7 @@ bool RepoItems::importCsv(const QString &csvContent, QString *errorOut)
     }
 
     for (const CsvItemRow &s : satirlar) {
-        const qint64 catId = categoryIdForName(s.kategoriAdi, errorOut);
+        const qint64 catId = ensureCategory(s.kategoriAdi, errorOut);
         if (catId < 0)
             return false;
 

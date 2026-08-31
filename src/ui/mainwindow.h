@@ -10,6 +10,7 @@ class QStackedWidget;
 class PageQuote;
 class PageArchive;
 class PageCustomers;
+class PageCatalog;
 
 // Ana pencere: solda sayfa listesi, sağda seçili sayfa.
 //
@@ -33,9 +34,10 @@ public:
     PageQuote *quotePage() const { return m_pageQuote; }
     PageArchive *archivePage() const { return m_pageArchive; }
     PageCustomers *customersPage() const { return m_pageCustomers; }
+    PageCatalog *catalogPage() const { return m_pageCatalog; }
 
     // Sayfa sırası; sol listedeki satırlarla birebir aynı.
-    enum Page { PageQuoteIndex = 0, PageArchiveIndex, PageCustomersIndex };
+    enum Page { PageQuoteIndex = 0, PageArchiveIndex, PageCatalogIndex, PageCustomersIndex };
     void showPage(Page page);
 
 private slots:
@@ -49,6 +51,7 @@ private:
     PageQuote *m_pageQuote;
     PageArchive *m_pageArchive;
     PageCustomers *m_pageCustomers;
+    PageCatalog *m_pageCatalog;
 
     void setupUi(QSqlDatabase db);
 };

@@ -6,6 +6,16 @@
 #include <QSqlDatabase>
 #include <QString>
 #include <QVector>
+#include <optional>
+
+// Katalog listesini daraltan ölçütler. QuoteFilter ile aynı kalıp: boş
+// bırakılan her alan "bu ölçüte bakma" demektir.
+struct ItemFilter
+{
+    bool includeInactive = false; // true ise pasif kalemler de listelenir
+    qint64 categoryId = 0;        // 0 = tüm kategoriler
+    QString aranan;               // Türkçe duyarlı arama (ad ve kod içinde)
+};
 
 // items (katalog) tablosunun deposu.
 //
@@ -36,11 +46,28 @@ public:
     // kaybolması kafa karıştırır.
     bool setActive(qint64 id, bool aktif, QString *errorOut = nullptr);
 
-    // includeInactive false ise pasif kalemler listeye girmez. Ada göre
-    // TÜRKÇE alfabetik sıralı döner (SQL'in BINARY collation'ı Türkçede
-    // yanlış sıralar — bkz. turkish.h).
+    // Filtreye uyan kalemleri ada göre TÜRKÇE alfabetik sıralı döner
+    // (SQL'in BINARY collation'ı Türkçede yanlış sıralar — bkz. turkish.h).
     // Sorgu başarısız olursa boş liste döner ve errorOut doldurulur.
+    QVector<Item> list(const ItemFilter &filtre, QString *errorOut = nullptr) const;
+
+    // list() için kısayol: yalnızca aktiflik ölçütüyle tüm katalog.
+    // Teklif ekranı arama indeksini bununla besler.
     QVector<Item> listAll(bool includeInactive = false, QString *errorOut = nullptr) const;
+
+    // Tek kalem okur. Bulunamazsa std::nullopt.
+    // Pasif kalemler de döner — katalog ekranında pasif bir kalem seçilip
+    // yeniden aktife alınabilmelidir.
+    std::optional<Item> get(qint64 id, QString *errorOut = nullptr) const;
+
+    // Kategorileri ada göre TÜRKÇE sıralı döner.
+    QVector<Category> listCategories(QString *errorOut = nullptr) const;
+
+    // ad'a sahip kategoriyi bulur, yoksa OLUŞTURUR.
+    // Döner: >0 kategori id'si, 0 ad boş (kategorisiz), -1 hata.
+    // Katalog ekranı da CSV içe aktarımı da aynı yolu kullanır ki kategori
+    // eşleştirme kuralları (trim, büyük/küçük harf) tek yerde kalsın.
+    qint64 ensureCategory(const QString &ad, QString *errorOut = nullptr);
 
     // İçe aktarma ÖNCE tüm satırları doğrular (csv.h), SONRA tek bir
     // transaction içinde ekler; herhangi bir satır (bozuk CSV veya
@@ -54,8 +81,5 @@ public:
 private:
     QSqlDatabase m_db;
 
-    // ad'a sahip kategoriyi bulur, yoksa oluşturur.
-    // Döner: >0 kategori id'si, 0 ad boş (kategorisiz), -1 hata.
-    qint64 categoryIdForName(const QString &ad, QString *errorOut);
     QHash<qint64, QString> categoryNameMap() const;
 };

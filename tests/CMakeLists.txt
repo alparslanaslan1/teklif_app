@@ -50,6 +50,7 @@ add_teklif_test(test_turkish)
 add_teklif_test(test_transaction)
 add_teklif_test(test_settings)
 add_teklif_test(test_archive)
+add_teklif_test(test_csv)
 
 add_teklif_ui_test(test_quote_line_model)
 add_teklif_ui_test(test_item_search)
@@ -57,6 +58,7 @@ add_teklif_ui_test(test_dlg_line_entry)
 add_teklif_ui_test(test_quote_table_view)
 add_teklif_ui_test(test_page_quote)
 add_teklif_ui_test(test_page_archive)
+add_teklif_ui_test(test_page_catalog)
 
 add_teklif_update_test(test_updater)
 

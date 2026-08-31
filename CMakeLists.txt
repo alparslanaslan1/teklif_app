@@ -125,6 +125,10 @@ add_library(teklif_ui STATIC
     src/ui/page_archive.cpp
     src/ui/page_customers.h
     src/ui/page_customers.cpp
+    src/ui/item_table_model.h
+    src/ui/item_table_model.cpp
+    src/ui/page_catalog.h
+    src/ui/page_catalog.cpp
     src/ui/mainwindow.h
     src/ui/mainwindow.cpp
 )

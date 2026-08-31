@@ -26,6 +26,15 @@ struct Item
 };
 Q_DECLARE_METATYPE(Item) // ItemSearch::itemChosen sinyali bunu taşır; QSignalSpy için gerekli.
 
+// categories tablosunun bellek içi karşılığı. Kategoriler yalnızca ad'dan
+// ibarettir; ayrı bir yönetim ekranı yoktur, CSV içe aktarımında ve katalog
+// ekranındaki açılır listede adı geçen kategori kendiliğinden oluşur.
+struct Category
+{
+    qint64 id = 0;
+    QString ad;
+};
+
 // customers tablosunun bellek içi karşılığı.
 struct Customer
 {
