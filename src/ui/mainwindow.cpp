@@ -76,6 +76,14 @@ void MainWindow::setupUi(QSqlDatabase db)
     connect(m_pageArchive, &PageArchive::quoteDuplicated, this, &MainWindow::openQuote);
     connect(m_pageCustomers, &PageCustomers::quoteOpenRequested, this, &MainWindow::openQuote);
 
+    // Silinen teklif ekranda açıksa form boşaltılır; yoksa kullanıcı artık
+    // var olmayan bir kaydı güncellemeye çalışır ve "teklif bulunamadı"
+    // hatasıyla karşılaşır.
+    connect(m_pageArchive, &PageArchive::quoteDeleted, this, [this](qint64 silinenId) {
+        if (m_pageQuote->currentQuoteId() == silinenId)
+            m_pageQuote->newQuote();
+    });
+
     // Müşteri eklendiğinde teklif ekranındaki açılır liste bayatlamasın.
     connect(m_pageCustomers, &PageCustomers::customersChanged, this,
             [this] { m_pageQuote->reloadCustomers(); });

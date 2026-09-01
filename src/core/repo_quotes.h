@@ -59,6 +59,17 @@ public:
     // En sık kullanılan özellik: geçen yılki teklifi çoğaltıp fiyat güncellemek.
     std::optional<Quote> duplicate(qint64 id, QString *errorOut = nullptr);
 
+    // Teklifi KALICI olarak siler; satırları quote_lines üzerindeki
+    // ON DELETE CASCADE ile birlikte gider.
+    //
+    // NEDEN GERÇEKTEN SİLİYORUZ (katalog ve müşterilerin aksine): yanlış
+    // girilmiş bir teklif geçmişin parçası değil, hatadır. Katalog kalemi
+    // pasife alınır çünkü ESKİ tekliflerde referansı bulunabilir; bir teklife
+    // ise hiçbir şey referans vermez, silinmesi hiçbir kaydı bozmaz.
+    //
+    // id bulunamazsa hata döner (sessizce "başarılı" saymaz).
+    bool remove(qint64 id, QString *errorOut = nullptr);
+
     // Müşterinin tüm tekliflerinin genel toplamı — müşteri kartında gösterilir.
     Money customerTotal(qint64 customerId, QString *errorOut = nullptr) const;
 

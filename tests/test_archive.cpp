@@ -45,6 +45,8 @@ private slots:
     void duplicateCreatesIndependentCopy();
     void duplicateDoesNotTouchOriginal();
     void customerTotalSumsQuotes();
+    void removeDeletesQuoteAndItsLines();
+    void removeUnknownIdFails();
 
 private:
     QTemporaryDir *m_dir = nullptr;
@@ -446,6 +448,45 @@ void TestArchive::customerTotalSumsQuotes()
     QCOMPARE(repo.customerTotal(b).toString(), QStringLiteral("999,00"));
     // Teklifi olmayan musteri: 0, hata degil.
     QCOMPARE(repo.customerTotal(9999).toString(), QStringLiteral("0,00"));
+}
+
+void TestArchive::removeDeletesQuoteAndItsLines()
+{
+    RepoQuotes repo(m_db);
+    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    const qint64 id = addQuote(c, QDate(2026, 8, 1), 10000);
+    const qint64 kalan = addQuote(c, QDate(2026, 8, 2), 20000);
+
+    // Satirlar gercekten var.
+    QSqlQuery say(m_db);
+    say.prepare(QStringLiteral("SELECT COUNT(*) FROM quote_lines WHERE quote_id = :id"));
+    say.bindValue(QStringLiteral(":id"), id);
+    QVERIFY(say.exec() && say.next());
+    QVERIFY(say.value(0).toInt() > 0);
+
+    QString err;
+    QVERIFY2(repo.remove(id, &err), qPrintable(err));
+
+    // Teklif gitti.
+    QVERIFY(!repo.get(id).has_value());
+
+    // Satirlari da gitti: quote_lines uzerinde ON DELETE CASCADE var ve
+    // PRAGMA foreign_keys acik olmadan bu SESSIZCE calismaz.
+    say.bindValue(QStringLiteral(":id"), id);
+    QVERIFY(say.exec() && say.next());
+    QCOMPARE(say.value(0).toInt(), 0);
+
+    // Diger teklif etkilenmemeli.
+    QVERIFY(repo.get(kalan).has_value());
+    QCOMPARE(repo.list(QuoteFilter{}).size(), 1);
+}
+
+void TestArchive::removeUnknownIdFails()
+{
+    // Olmayan bir id sessizce "basarili" sayilmamali.
+    QString err;
+    QVERIFY(!RepoQuotes(m_db).remove(9999, &err));
+    QVERIFY(!err.isEmpty());
 }
 
 QTEST_MAIN(TestArchive)

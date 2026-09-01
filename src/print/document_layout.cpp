@@ -219,8 +219,10 @@ double DocumentLayout::measureTotals(QPainter *p, const QRectF &pageRect) const
     const QFontMetricsF fm(baseFont(), p->device());
     const double satir = fm.height() + 2.0;
 
-    // Ara toplam + KDV + genel toplam = 3 satır, üstünde ayraç boşluğu.
-    double h = px(p, kBlokBoslukPt) + 3 * satir;
+    // KDV'li kayıtta üç satır (ara toplam + KDV + genel toplam), KDV'siz
+    // kayıtta yalnızca genel toplam. paintTotals ile AYNI koşula bakmak
+    // zorunda: ayrışırlarsa toplam bloğu için ayrılan yer yanlış olur.
+    double h = px(p, kBlokBoslukPt) + (m_ctx.quote.kdvTutari.isZero() ? 1 : 3) * satir;
     // "Yazıyla" satırı her zaman basılır — sözleşme belgelerinde beklenir.
     h += satir + px(p, kHucreBoslukPt);
 
@@ -537,10 +539,17 @@ void DocumentLayout::paintTotals(QPainter *p, const QRectF &pageRect, double &y)
         y += satir;
     };
 
-    satirYaz(QStringLiteral("Ara Toplam"), m_ctx.quote.araToplam.toString(), false);
-    satirYaz(QStringLiteral("KDV (%%1)").arg(m_ctx.quote.kdvOraniYuzde),
-              m_ctx.quote.kdvTutari.toString(), false);
-    p->drawLine(QPointF(etiketX, y), QPointF(pageRect.right(), y));
+    // KDV DÖKÜMÜ YALNIZCA KDV'Lİ KAYITLARDA. Program artık KDV'yi ayrı
+    // hesaplamıyor (fiyatlar KDV dahil), bu yüzden yeni tekliflerde tek bir
+    // toplam satırı basılır — "Ara Toplam" ile "Genel Toplam"ın aynı sayıyı
+    // göstermesi kafa karıştırırdı. Daha önce KDV'li kaydedilmiş teklifler
+    // dondurulmuş belgelerdir ve kendi dökümüyle basılmaya devam eder.
+    if (!m_ctx.quote.kdvTutari.isZero()) {
+        satirYaz(QStringLiteral("Ara Toplam"), m_ctx.quote.araToplam.toString(), false);
+        satirYaz(QStringLiteral("KDV (%%1)").arg(m_ctx.quote.kdvOraniYuzde),
+                  m_ctx.quote.kdvTutari.toString(), false);
+        p->drawLine(QPointF(etiketX, y), QPointF(pageRect.right(), y));
+    }
     satirYaz(QStringLiteral("GENEL TOPLAM"), m_ctx.quote.genelToplam.toString(), true);
 
     p->setFont(baseFont());

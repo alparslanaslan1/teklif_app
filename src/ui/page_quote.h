@@ -11,7 +11,6 @@
 #include <QSqlDatabase>
 #include <QWidget>
 
-class QCheckBox;
 class QComboBox;
 class QDateEdit;
 class QLabel;
@@ -94,12 +93,9 @@ private:
     ItemSearch *m_search;
     QuoteTableView *m_table;
     QuoteLineModel *m_model;
-    QCheckBox *m_kdvCheck;
     QLineEdit *m_projeEdit;
     QDateEdit *m_tarihEdit;
     QSpinBox *m_gecerlilikSpin;
-    QLabel *m_araLabel;
-    QLabel *m_kdvLabel;
     QLabel *m_genelLabel;
     QLabel *m_teklifNoLabel;
     QPushButton *m_saveButton;
@@ -110,9 +106,6 @@ private:
     // save() bu değere bakarak INSERT mi UPDATE mi yapacağına karar verir.
     qint64 m_quoteId = 0;
     QString m_teklifNo;
-    // Kaydedilirken kullanılan KDV oranı. Kutu işaretliyse bu, değilse 0.
-    // Ayarlardan okunur (varsayılan %20), böylece oran tek yerden değişir.
-    int m_kdvOrani = 20;
     // Kaydedilirken teklife kopyalanan şartlar metni. Yeni teklifte
     // ayarlardan gelir, açılan teklifte kendi metnidir.
     QString m_sartlarMetni;

@@ -15,7 +15,6 @@ QString Settings::keyCompanyEmail()       { return QStringLiteral("firma_email")
 QString Settings::keyCompanyTaxOffice()   { return QStringLiteral("firma_vergi_dairesi"); }
 QString Settings::keyCompanyTaxNo()       { return QStringLiteral("firma_vergi_no"); }
 QString Settings::keyCompanyLogo()        { return QStringLiteral("firma_logo"); }
-QString Settings::keyDefaultVatRate()     { return QStringLiteral("varsayilan_kdv_orani"); }
 QString Settings::keyQuoteNoDigits()      { return QStringLiteral("teklif_no_hane"); }
 QString Settings::keyUiScale()            { return QStringLiteral("arayuz_olcegi"); }
 QString Settings::keyDocumentFontPt()     { return QStringLiteral("belge_yazi_boyutu"); }
@@ -23,6 +22,12 @@ QString Settings::keyPdfFolder()          { return QStringLiteral("pdf_klasoru")
 QString Settings::keyTermsText()          { return QStringLiteral("sartlar_metni"); }
 QString Settings::keyUpdateSkipVersion()  { return QStringLiteral("guncelleme_atlanan_surum"); }
 QString Settings::keyUpdateCheckEnabled() { return QStringLiteral("guncelleme_denetimi"); }
+
+QString Settings::varsayilanSartlar()
+{
+    return QStringLiteral("Fiyatlarımıza KDV dahildir. "
+                           "Teklif 15 gün geçerlidir.");
+}
 
 std::optional<QString> Settings::value(const QString &key, QString *errorOut) const
 {

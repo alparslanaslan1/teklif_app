@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSqlDatabase>
+#include <QMessageBox>
 #include <QTableView>
 #include <QTemporaryDir>
 
@@ -35,6 +36,8 @@ private slots:
     void archiveSummaryShowsTotal();
     void archiveDuplicateAddsRowAndEmits();
     void mainWindowOpensQuoteFromArchive();
+    void deleteRemovesRowAndEmits();
+    void deletingOpenQuoteClearsQuotePage();
     void customersPageAddsAndEdits();
     void customersPageShowsCustomerQuotes();
     void customerAddedIsVisibleInQuotePage();
@@ -245,6 +248,77 @@ void TestPageArchive::customerAddedIsVisibleInQuotePage()
     QVERIFY(combo);
     QVERIFY2(combo->findText(QStringLiteral("Sonradan Eklenen")) >= 0,
              "yeni musteri teklif ekranindaki listede yok");
+}
+
+void TestPageArchive::deleteRemovesRowAndEmits()
+{
+    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    addQuote(c, QDate(2026, 8, 1), 10000);
+    addQuote(c, QDate(2026, 8, 2), 20000);
+
+    PageArchive page(m_db);
+    QCOMPARE(page.model()->rowCount(), 2);
+
+    auto *table = page.findChild<QTableView *>(QStringLiteral("arsivTable"));
+    QVERIFY(table);
+    table->setCurrentIndex(page.model()->index(0, 0));
+    const qint64 silinecek = page.selectedQuoteId();
+
+    QSignalSpy spy(&page, &PageArchive::quoteDeleted);
+
+    // Onay kutusundaki "Sil" dugmesine bas.
+    QTimer::singleShot(0, [] {
+        for (QWidget *w : QApplication::topLevelWidgets()) {
+            if (auto *box = qobject_cast<QMessageBox *>(w)) {
+                for (QAbstractButton *b : box->buttons()) {
+                    if (box->buttonRole(b) == QMessageBox::DestructiveRole) {
+                        b->click();
+                        return;
+                    }
+                }
+            }
+        }
+    });
+    page.findChild<QPushButton *>(QStringLiteral("arsivSilButton"))->click();
+
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.first().first().toLongLong(), silinecek);
+    QCOMPARE(page.model()->rowCount(), 1);
+    QVERIFY(!RepoQuotes(m_db).get(silinecek).has_value());
+}
+
+void TestPageArchive::deletingOpenQuoteClearsQuotePage()
+{
+    // Ekranda ACIK olan teklif silinirse form bosaltilmali; yoksa kullanici
+    // artik var olmayan bir kaydi kaydetmeye calisir.
+    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    const qint64 qid = addQuote(c, QDate(2026, 8, 1), 10000);
+
+    MainWindow w(m_db);
+    QString err;
+    QVERIFY2(w.quotePage()->loadQuote(qid, &err), qPrintable(err));
+    QCOMPARE(w.quotePage()->currentQuoteId(), qid);
+
+    w.archivePage()->refresh();
+    auto *table = w.archivePage()->findChild<QTableView *>(QStringLiteral("arsivTable"));
+    table->setCurrentIndex(w.archivePage()->model()->index(0, 0));
+
+    QTimer::singleShot(0, [] {
+        for (QWidget *wd : QApplication::topLevelWidgets()) {
+            if (auto *box = qobject_cast<QMessageBox *>(wd)) {
+                for (QAbstractButton *b : box->buttons()) {
+                    if (box->buttonRole(b) == QMessageBox::DestructiveRole) {
+                        b->click();
+                        return;
+                    }
+                }
+            }
+        }
+    });
+    w.archivePage()->findChild<QPushButton *>(QStringLiteral("arsivSilButton"))->click();
+
+    QCOMPARE(w.quotePage()->currentQuoteId(), qint64(0));
+    QCOMPARE(w.quotePage()->lineModel()->rowCount(), 0);
 }
 
 QTEST_MAIN(TestPageArchive)

@@ -128,6 +128,10 @@ void PageArchive::setupUi()
     m_durumButton->setObjectName(QStringLiteral("arsivDurumButton"));
     connect(m_durumButton, &QPushButton::clicked, this, &PageArchive::changeStatusOfSelected);
 
+    m_silButton = new QPushButton(QStringLiteral("Sil"), this);
+    m_silButton->setObjectName(QStringLiteral("arsivSilButton"));
+    connect(m_silButton, &QPushButton::clicked, this, &PageArchive::deleteSelected);
+
     m_ozetLabel = new QLabel(this);
     m_ozetLabel->setObjectName(QStringLiteral("arsivOzetLabel"));
 
@@ -137,6 +141,7 @@ void PageArchive::setupUi()
     komutlar->addWidget(m_acButton);
     komutlar->addWidget(m_kopyalaButton);
     komutlar->addWidget(m_durumButton);
+    komutlar->addWidget(m_silButton);
 
     auto *ana = new QVBoxLayout(this);
     ana->addWidget(filtreKutu);
@@ -246,6 +251,7 @@ void PageArchive::updateButtons()
     m_acButton->setEnabled(secili);
     m_kopyalaButton->setEnabled(secili);
     m_durumButton->setEnabled(secili);
+    m_silButton->setEnabled(secili);
 }
 
 void PageArchive::openSelected()
@@ -273,6 +279,47 @@ void PageArchive::duplicateSelected()
     // Kopya çıkarmanın amacı neredeyse her zaman onu düzenlemektir; doğrudan
     // açılır.
     emit quoteDuplicated(kopya->id);
+}
+
+void PageArchive::deleteSelected()
+{
+    const qint64 id = selectedQuoteId();
+    if (id == 0)
+        return;
+
+    const QuoteSummary mevcut = m_model->at(m_table->currentIndex().row());
+
+    // Geri alınamaz bir işlem: onay metni hangi teklifin gideceğini AÇIKÇA
+    // söyler. Yalnızca "emin misiniz?" demek, yanlış satır seçilmişse
+    // kullanıcıyı korumaz.
+    const QString mesaj =
+        QStringLiteral("%1 numaralı teklif kalıcı olarak silinecek.\n\n"
+                        "Müşteri: %2\nTarih: %3\nTutar: %4\n\n"
+                        "Bu işlem geri alınamaz. Devam edilsin mi?")
+            .arg(mevcut.teklifNo, mevcut.customerUnvan,
+                  mevcut.tarih.toString(QStringLiteral("dd.MM.yyyy")),
+                  mevcut.genelToplam.toString());
+
+    QMessageBox kutu(QMessageBox::Warning, QStringLiteral("Teklifi sil"), mesaj,
+                      QMessageBox::NoButton, this);
+    QPushButton *sil = kutu.addButton(QStringLiteral("Sil"), QMessageBox::DestructiveRole);
+    kutu.addButton(QStringLiteral("Vazgeç"), QMessageBox::RejectRole);
+    // Varsayılan düğme "Vazgeç": Enter'a refleksle basan kullanıcı yanlışlıkla
+    // silmesin.
+    kutu.setDefaultButton(qobject_cast<QPushButton *>(kutu.buttons().last()));
+    kutu.exec();
+
+    if (kutu.clickedButton() != sil)
+        return;
+
+    QString err;
+    if (!m_repoQuotes.remove(id, &err)) {
+        QMessageBox::warning(this, QStringLiteral("Silinemedi"), err);
+        return;
+    }
+
+    applyFilter();
+    emit quoteDeleted(id);
 }
 
 void PageArchive::changeStatusOfSelected()

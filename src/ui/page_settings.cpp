@@ -91,11 +91,6 @@ void PageSettings::setupUi()
     firmaKutu->setLayout(firmaForm);
 
     // --- Teklif varsayılanları ---------------------------------------------
-    m_kdvSpin = new QSpinBox(this);
-    m_kdvSpin->setObjectName(QStringLiteral("ayarKdvSpin"));
-    m_kdvSpin->setRange(0, 100);
-    m_kdvSpin->setSuffix(QStringLiteral(" %"));
-
     m_haneSpin = new QSpinBox(this);
     m_haneSpin->setObjectName(QStringLiteral("ayarHaneSpin"));
     m_haneSpin->setRange(RepoQuotes::kMinQuoteNoDigits, RepoQuotes::kMaxQuoteNoDigits);
@@ -104,11 +99,11 @@ void PageSettings::setupUi()
     m_sartlarEdit = new QPlainTextEdit(this);
     m_sartlarEdit->setObjectName(QStringLiteral("ayarSartlarEdit"));
     m_sartlarEdit->setMaximumHeight(90);
-    m_sartlarEdit->setPlaceholderText(
-        QStringLiteral("Belgenin altına basılacak varsayılan şartlar metni"));
+    // Boş bırakılırsa varsayılan metin kullanılır; kullanıcı ne basılacağını
+    // görebilsin diye ipucu olarak gösterilir.
+    m_sartlarEdit->setPlaceholderText(Settings::varsayilanSartlar());
 
     auto *teklifForm = new QFormLayout;
-    teklifForm->addRow(QStringLiteral("Varsayılan KDV"), m_kdvSpin);
     teklifForm->addRow(QStringLiteral("Teklif no hane sayısı"), m_haneSpin);
     teklifForm->addRow(QStringLiteral("Şartlar metni"), m_sartlarEdit);
 
@@ -200,7 +195,6 @@ void PageSettings::refresh()
     m_vergiDairesiEdit->setText(m_settings.valueOr(Settings::keyCompanyTaxOffice()));
     m_vergiNoEdit->setText(m_settings.valueOr(Settings::keyCompanyTaxNo()));
 
-    m_kdvSpin->setValue(static_cast<int>(m_settings.intValueOr(Settings::keyDefaultVatRate(), 20)));
     m_haneSpin->setValue(static_cast<int>(m_settings.intValueOr(
         Settings::keyQuoteNoDigits(), RepoQuotes::kDefaultQuoteNoDigits)));
     m_belgeYaziSpin->setValue(
@@ -209,6 +203,7 @@ void PageSettings::refresh()
         static_cast<int>(m_settings.intValueOr(Settings::keyUiScale(), Theme::kDefaultScale)));
     m_pdfKlasorEdit->setText(m_settings.valueOr(Settings::keyPdfFolder()));
     m_sartlarEdit->setPlainText(m_settings.valueOr(Settings::keyTermsText()));
+
 
     logoOnizlemeyiTazele();
 }
@@ -247,8 +242,6 @@ bool PageSettings::save(QString *errorOut)
             return false;
     }
 
-    if (!m_settings.setInt(Settings::keyDefaultVatRate(), m_kdvSpin->value(), errorOut))
-        return false;
     if (!m_settings.setInt(Settings::keyQuoteNoDigits(), m_haneSpin->value(), errorOut))
         return false;
     if (!m_settings.setInt(Settings::keyDocumentFontPt(), m_belgeYaziSpin->value(), errorOut))

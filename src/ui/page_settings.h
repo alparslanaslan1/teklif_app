@@ -59,7 +59,6 @@ private:
     QPushButton *m_logoSecButton;
     QPushButton *m_logoSilButton;
 
-    QSpinBox *m_kdvSpin;
     QSpinBox *m_haneSpin;
     QSpinBox *m_belgeYaziSpin;
     QSpinBox *m_olcekSpin;

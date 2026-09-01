@@ -42,6 +42,9 @@ signals:
     void quoteOpenRequested(qint64 quoteId);
     // Kopyalama yeni bir teklif oluşturdu; onu da açmak mantıklı.
     void quoteDuplicated(qint64 newQuoteId);
+    // Teklif silindi. Teklif ekranında AÇIKSA orası boşaltılmalı, yoksa
+    // kullanıcı artık var olmayan bir teklifi kaydetmeye çalışabilir.
+    void quoteDeleted(qint64 quoteId);
 
 private slots:
     void applyFilter();
@@ -49,6 +52,7 @@ private slots:
     void openSelected();
     void duplicateSelected();
     void changeStatusOfSelected();
+    void deleteSelected();
 
 private:
     RepoQuotes m_repoQuotes;
@@ -66,6 +70,7 @@ private:
     QPushButton *m_acButton;
     QPushButton *m_kopyalaButton;
     QPushButton *m_durumButton;
+    QPushButton *m_silButton;
 
     void setupUi();
     QuoteFilter currentFilter() const;

@@ -31,12 +31,19 @@ public:
     static QString keyCompanyTaxOffice();
     static QString keyCompanyTaxNo();
     static QString keyCompanyLogo();     // base64 PNG; boş = logo yok
-    static QString keyDefaultVatRate();  // yeni tekliflerin varsayılan KDV oranı
     static QString keyQuoteNoDigits();   // teklif numarasının sıfır dolgulu hane sayısı
     static QString keyUiScale();         // arayüz ölçeği (%)
     static QString keyDocumentFontPt();  // belge yazı boyutu (pt)
     static QString keyPdfFolder();
     static QString keyTermsText();       // varsayılan şartlar metni
+
+    // Kullanıcı kendi şartlar metnini girmediyse kullanılan varsayılan.
+    //
+    // KDV BURADA YAZILI: program KDV'yi ayrı bir kalem olarak HESAPLAMAZ;
+    // fiyatlar KDV dahil girilir. Bunun belgede yazması, müşteriyle
+    // aradaki tek kayıttır — toplam satırında bir "KDV" dökümü
+    // görünmeyeceği için burada belirtilmezse belirsiz kalırdı.
+    static QString varsayilanSartlar();
     static QString keyUpdateSkipVersion();   // "bu sürümü atla" seçilen sürüm
     static QString keyUpdateCheckEnabled();  // açılışta güncelleme denetimi
 

@@ -33,7 +33,7 @@ private slots:
 
     void savesCompanyInfo();
     void reloadShowsStoredValues();
-    void vatRateReachesQuotePage();
+    void totalHasNoVatBreakdown();
     void quoteNoDigitsAffectNumbering();
     void quoteNoDigitsAreClamped();
     void termsTextIsFrozenIntoQuote();
@@ -93,24 +93,23 @@ void TestPageSettings::reloadShowsStoredValues()
 {
     Settings s(m_db);
     QVERIFY(s.setValue(Settings::keyCompanyName(), QStringLiteral("Kayıtlı Firma")));
-    QVERIFY(s.setInt(Settings::keyDefaultVatRate(), 10));
+    QVERIFY(s.setInt(Settings::keyDocumentFontPt(), 9));
 
     PageSettings page(m_db); // ctor refresh() cagirir
     QCOMPARE(page.findChild<QLineEdit *>(QStringLiteral("ayarUnvanEdit"))->text(),
              QStringLiteral("Kayıtlı Firma"));
-    QCOMPARE(page.findChild<QSpinBox *>(QStringLiteral("ayarKdvSpin"))->value(), 10);
+    QCOMPARE(page.findChild<QSpinBox *>(QStringLiteral("ayarBelgeYaziSpin"))->value(), 9);
 }
 
-void TestPageSettings::vatRateReachesQuotePage()
+void TestPageSettings::totalHasNoVatBreakdown()
 {
-    // KDV oranini degistirince ACIK teklif ekrani da guncellenmeli.
+    // KDV ayristirmasi kaldirildi: fiyatlar KDV dahil girilir. Yeni bir
+    // teklifte KDV orani 0 olmali ve genel toplam ara toplama esit cikmali.
     MainWindow w(m_db);
-    w.settingsPage()->findChild<QSpinBox *>(QStringLiteral("ayarKdvSpin"))->setValue(10);
-    QString err;
-    QVERIFY2(w.settingsPage()->save(&err), qPrintable(err));
 
     Customer c;
     c.unvan = QStringLiteral("Musteri");
+    QString err;
     QVERIFY(RepoCustomers(m_db).add(c, &err));
     w.quotePage()->reloadCustomers();
     w.quotePage()->selectCustomerById(c.id);
@@ -118,11 +117,19 @@ void TestPageSettings::vatRateReachesQuotePage()
     Item it;
     it.kod = QStringLiteral("K-1"); it.ad = QStringLiteral("Kalem");
     it.birim = QStringLiteral("adet"); it.varsayilanFiyat = Money(10000);
-    w.quotePage()->lineModel()->addLine(it, 1.0, Money(10000), QString());
+    w.quotePage()->lineModel()->addLine(it, 3.0, Money(10000), QString());
 
     const Quote q = w.quotePage()->currentQuoteSnapshot();
-    QCOMPARE(q.kdvOraniYuzde, 10);
-    QCOMPARE(q.kdvTutari.toString(), QStringLiteral("10,00"));
+    QCOMPARE(q.kdvOraniYuzde, 0);
+    QCOMPARE(q.kdvTutari.kurus(), 0LL);
+    QCOMPARE(q.genelToplam.toString(), q.araToplam.toString());
+    QCOMPARE(q.genelToplam.toString(), QStringLiteral("300,00"));
+
+    // Ekranda KDV kutusu ve satiri artik olmamali.
+    QVERIFY2(!w.quotePage()->findChild<QWidget *>(QStringLiteral("kdvCheck")),
+             "KDV kutusu hala ekranda");
+    QVERIFY2(!w.quotePage()->findChild<QWidget *>(QStringLiteral("kdvLabel")),
+             "KDV satiri hala ekranda");
 }
 
 void TestPageSettings::quoteNoDigitsAffectNumbering()

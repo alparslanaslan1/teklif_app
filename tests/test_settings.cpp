@@ -22,6 +22,7 @@ private slots:
     void boolRoundTrip();
     void removeKey();
     void keysAreDistinct();
+    void defaultTermsMentionVatIncluded();
 
 private:
     QTemporaryDir *m_dir = nullptr;
@@ -126,12 +127,33 @@ void TestSettings::keysAreDistinct()
         Settings::keyQuoteCounter(),      Settings::keyCompanyName(),
         Settings::keyCompanyAddress(),    Settings::keyCompanyPhone(),
         Settings::keyCompanyEmail(),      Settings::keyCompanyTaxOffice(),
-        Settings::keyCompanyTaxNo(),      Settings::keyDefaultVatRate(),
+        Settings::keyCompanyTaxNo(),      Settings::keyCompanyLicence(),
         Settings::keyUiScale(),           Settings::keyDocumentFontPt(),
         Settings::keyPdfFolder(),         Settings::keyTermsText(),
         Settings::keyUpdateSkipVersion(), Settings::keyUpdateCheckEnabled(),
     };
     QCOMPARE(QSet<QString>(anahtarlar.begin(), anahtarlar.end()).size(), anahtarlar.size());
+}
+
+void TestSettings::defaultTermsMentionVatIncluded()
+{
+    // Program KDV'yi ayri bir kalem olarak hesaplamiyor; fiyatlar KDV
+    // dahil. Bunun belgede yazmasi musteriyle aradaki TEK kayit — toplam
+    // satirinda bir KDV dokumu gorunmedigi icin belirtilmezse belirsiz
+    // kalirdi.
+    const QString varsayilan = Settings::varsayilanSartlar();
+    QVERIFY2(varsayilan.contains(QStringLiteral("KDV")),
+             qPrintable(QStringLiteral("varsayilan sartlarda KDV gecmiyor: %1").arg(varsayilan)));
+    QVERIFY(varsayilan.contains(QStringLiteral("dahil")));
+
+    // Kullanici kendi metnini girmediyse varsayilan kullanilmali.
+    Settings s(m_db);
+    QCOMPARE(s.valueOr(Settings::keyTermsText(), Settings::varsayilanSartlar()), varsayilan);
+
+    // Girdiyse kendi metni korunmali.
+    QVERIFY(s.setValue(Settings::keyTermsText(), QStringLiteral("Kendi şartlarım")));
+    QCOMPARE(s.valueOr(Settings::keyTermsText(), Settings::varsayilanSartlar()),
+             QStringLiteral("Kendi şartlarım"));
 }
 
 QTEST_MAIN(TestSettings)

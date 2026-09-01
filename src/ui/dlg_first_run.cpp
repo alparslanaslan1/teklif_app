@@ -171,6 +171,11 @@ void FirstRunDialog::onAccept()
         }
     }
 
+    // Şartlar metni ilk kurulumda hazır gelsin: KDV dahil olduğu bilgisi
+    // belgede mutlaka bulunmalı ve kullanıcının bunu bilip yazması beklenemez.
+    if (m_settings.valueOr(Settings::keyTermsText()).isEmpty())
+        m_settings.setValue(Settings::keyTermsText(), Settings::varsayilanSartlar(), &err);
+
     if (m_ornekKatalogCheck->isChecked() && !loadSampleCatalog(m_db, &err)) {
         // Örnek katalog eklenemese bile firma bilgisi kaydedildi; kullanıcıyı
         // baştan başlatmaya gerek yok, sadece bilgilendirilir.

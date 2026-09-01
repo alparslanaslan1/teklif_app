@@ -395,6 +395,25 @@ std::optional<Quote> RepoQuotes::duplicate(qint64 id, QString *errorOut)
     return kopya;
 }
 
+bool RepoQuotes::remove(qint64 id, QString *errorOut)
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("DELETE FROM quotes WHERE id = :id"));
+    q.bindValue(QStringLiteral(":id"), id);
+
+    if (!q.exec()) {
+        if (errorOut)
+            *errorOut = q.lastError().text();
+        return false;
+    }
+    if (q.numRowsAffected() == 0) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Silinecek teklif bulunamadı (id %1).").arg(id);
+        return false;
+    }
+    return true;
+}
+
 Money RepoQuotes::customerTotal(qint64 customerId, QString *errorOut) const
 {
     QSqlQuery q(m_db);

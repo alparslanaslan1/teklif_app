@@ -9,7 +9,6 @@
 #include "quote_line_model.h"
 #include "quote_table_view.h"
 
-#include <QCheckBox>
 #include <QComboBox>
 #include <QDateEdit>
 #include <QFileDialog>
@@ -45,11 +44,7 @@ PageQuote::PageQuote(QSqlDatabase db, QWidget *parent)
 {
     setupUi();
 
-    // KDV oranı ayarlardan gelir; ayar yoksa %20. Oran tek yerden değişsin
-    // diye ekranda sabit yazılmaz.
-    m_kdvOrani = static_cast<int>(m_settings.intValueOr(Settings::keyDefaultVatRate(), 20));
-    m_sartlarMetni = m_settings.valueOr(Settings::keyTermsText());
-    m_kdvCheck->setText(QStringLiteral("KDV uygula (%%1)").arg(m_kdvOrani));
+    m_sartlarMetni = m_settings.valueOr(Settings::keyTermsText(), Settings::varsayilanSartlar());
 
     newQuote();
 }
@@ -114,29 +109,19 @@ void PageQuote::setupUi()
     connect(silKisayol, &QShortcut::activated, this, &PageQuote::deleteCurrentRow);
 
     // --- Toplamlar ----------------------------------------------------------
-    m_kdvCheck = new QCheckBox(QStringLiteral("KDV uygula"), this);
-    m_kdvCheck->setObjectName(QStringLiteral("kdvCheck"));
-    m_kdvCheck->setChecked(true);
-    connect(m_kdvCheck, &QCheckBox::toggled, this, &PageQuote::recomputeTotals);
-
-    m_araLabel = new QLabel(this);
-    m_araLabel->setObjectName(QStringLiteral("araLabel"));
-    m_kdvLabel = new QLabel(this);
-    m_kdvLabel->setObjectName(QStringLiteral("kdvLabel"));
     m_genelLabel = new QLabel(this);
     m_genelLabel->setObjectName(QStringLiteral("genelLabel"));
     QFont kalin = m_genelLabel->font();
     kalin.setBold(true);
     m_genelLabel->setFont(kalin);
 
+    // Tek satır: KDV ayrıştırması yok, fiyatlara KDV dahil. Belgenin altındaki
+    // şartlar metni bunu yazar (bkz. Settings::varsayilanSartlar).
     auto *toplamlar = new QFormLayout;
-    toplamlar->addRow(QStringLiteral("Ara Toplam"), m_araLabel);
-    toplamlar->addRow(QStringLiteral("KDV"), m_kdvLabel);
-    toplamlar->addRow(QStringLiteral("Genel Toplam"), m_genelLabel);
+    toplamlar->addRow(QStringLiteral("Toplam"), m_genelLabel);
 
-    auto *toplamKutu = new QGroupBox(QStringLiteral("Toplamlar"), this);
+    auto *toplamKutu = new QGroupBox(QStringLiteral("Toplam"), this);
     auto *toplamLay = new QVBoxLayout(toplamKutu);
-    toplamLay->addWidget(m_kdvCheck);
     toplamLay->addLayout(toplamlar);
 
     // --- Butonlar -----------------------------------------------------------
@@ -175,12 +160,11 @@ void PageQuote::setupUi()
 
 void PageQuote::reloadSettings()
 {
-    // Ayarlar ekranında bir şey değiştiğinde çağrılır: KDV oranı, şartlar
-    // metni ve belge yazı boyutu bir sonraki teklifte geçerli olsun.
-    m_kdvOrani = static_cast<int>(m_settings.intValueOr(Settings::keyDefaultVatRate(), 20));
-    m_kdvCheck->setText(QStringLiteral("KDV uygula (%%1)").arg(m_kdvOrani));
+    // Ayarlar ekranında bir şey değiştiğinde çağrılır: şartlar metni ve
+    // belge yazı boyutu bir sonraki teklifte geçerli olsun.
     if (m_quoteId == 0)
-        m_sartlarMetni = m_settings.valueOr(Settings::keyTermsText());
+        m_sartlarMetni = m_settings.valueOr(Settings::keyTermsText(),
+                                             Settings::varsayilanSartlar());
     recomputeTotals();
 }
 
@@ -251,7 +235,6 @@ void PageQuote::newQuote()
     m_projeEdit->clear();
     m_tarihEdit->setDate(QDate::currentDate());
     m_gecerlilikSpin->setValue(kVarsayilanGecerlilik);
-    m_kdvCheck->setChecked(true);
     m_customerCombo->setCurrentIndex(0);
     // Numara ancak kaydedilince atanır (sayaç transaction içinde artar),
     // bu yüzden kaydedilmemiş teklifte numara gösterilmez.
@@ -274,12 +257,6 @@ bool PageQuote::loadQuote(qint64 id, QString *errorOut)
     m_gecerlilikSpin->setValue(teklif->gecerlilikGun > 0 ? teklif->gecerlilikGun
                                                           : kVarsayilanGecerlilik);
 
-    // Kayıtlı teklifin KDV oranı ayarlardaki güncel orandan FARKLI olabilir;
-    // belge dondurulmuş olduğu için kendi oranıyla açılır.
-    if (teklif->kdvOraniYuzde > 0)
-        m_kdvOrani = teklif->kdvOraniYuzde;
-    m_kdvCheck->setText(QStringLiteral("KDV uygula (%%1)").arg(m_kdvOrani));
-    m_kdvCheck->setChecked(teklif->kdvOraniYuzde > 0);
     // Kayıtlı teklif kendi şartlar metnini taşır.
     m_sartlarMetni = teklif->sartlarMetni;
 
@@ -316,7 +293,11 @@ Quote PageQuote::currentQuoteSnapshot() const
     // hâli belgeye yazılır ve orada donar (ayar sonradan değişse bile eski
     // teklif kendi şartlarıyla basılır).
     q.sartlarMetni = m_sartlarMetni;
-    q.kdvOraniYuzde = m_kdvCheck->isChecked() ? m_kdvOrani : 0;
+    // KDV AYRIŞTIRMASI YOK: fiyatlar KDV dahil girilir, belge altındaki
+    // şartlar metni bunu belirtir. Şema sütunları duruyor ki KDV'li olarak
+    // kaydedilmiş ESKİ teklifler kendi dökümüyle basılmaya devam etsin
+    // (bkz. DocumentLayout::paintTotals).
+    q.kdvOraniYuzde = 0;
     q.satirlar = m_model->lines();
 
     // Toplamlar ekranda gösterilenle AYNI kaynaktan hesaplanır; kaydedilen
@@ -336,8 +317,6 @@ Quote PageQuote::currentQuoteSnapshot() const
 void PageQuote::recomputeTotals()
 {
     const Quote q = currentQuoteSnapshot();
-    m_araLabel->setText(q.araToplam.toString());
-    m_kdvLabel->setText(q.kdvTutari.toString());
     m_genelLabel->setText(q.genelToplam.toString());
 }
 
