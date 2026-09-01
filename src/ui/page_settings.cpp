@@ -42,6 +42,9 @@ void PageSettings::setupUi()
     // --- Firma bilgileri ----------------------------------------------------
     m_unvanEdit = new QLineEdit(this);
     m_unvanEdit->setObjectName(QStringLiteral("ayarUnvanEdit"));
+    m_yetkiEdit = new QLineEdit(this);
+    m_yetkiEdit->setObjectName(QStringLiteral("ayarYetkiEdit"));
+    m_yetkiEdit->setPlaceholderText(QStringLiteral("örn. Aksa Doğalgaz Yetkili Firma (No: 328)"));
     m_adresEdit = new QLineEdit(this);
     m_adresEdit->setObjectName(QStringLiteral("ayarAdresEdit"));
     m_telefonEdit = new QLineEdit(this);
@@ -76,6 +79,7 @@ void PageSettings::setupUi()
 
     auto *firmaForm = new QFormLayout;
     firmaForm->addRow(QStringLiteral("Unvan"), m_unvanEdit);
+    firmaForm->addRow(QStringLiteral("Yetki belgesi"), m_yetkiEdit);
     firmaForm->addRow(QStringLiteral("Adres"), m_adresEdit);
     firmaForm->addRow(QStringLiteral("Telefon"), m_telefonEdit);
     firmaForm->addRow(QStringLiteral("E-posta"), m_emailEdit);
@@ -189,6 +193,7 @@ void PageSettings::setupUi()
 void PageSettings::refresh()
 {
     m_unvanEdit->setText(m_settings.valueOr(Settings::keyCompanyName()));
+    m_yetkiEdit->setText(m_settings.valueOr(Settings::keyCompanyLicence()));
     m_adresEdit->setText(m_settings.valueOr(Settings::keyCompanyAddress()));
     m_telefonEdit->setText(m_settings.valueOr(Settings::keyCompanyPhone()));
     m_emailEdit->setText(m_settings.valueOr(Settings::keyCompanyEmail()));
@@ -228,6 +233,7 @@ bool PageSettings::save(QString *errorOut)
     struct Alan { QString anahtar; QString deger; };
     const QVector<Alan> alanlar = {
         {Settings::keyCompanyName(), m_unvanEdit->text().trimmed()},
+        {Settings::keyCompanyLicence(), m_yetkiEdit->text().trimmed()},
         {Settings::keyCompanyAddress(), m_adresEdit->text().trimmed()},
         {Settings::keyCompanyPhone(), m_telefonEdit->text().trimmed()},
         {Settings::keyCompanyEmail(), m_emailEdit->text().trimmed()},

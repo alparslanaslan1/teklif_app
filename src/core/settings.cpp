@@ -8,6 +8,7 @@ Settings::Settings(QSqlDatabase db) : m_db(std::move(db)) {}
 
 QString Settings::keyQuoteCounter()       { return QStringLiteral("teklif_no_sayac"); }
 QString Settings::keyCompanyName()        { return QStringLiteral("firma_unvan"); }
+QString Settings::keyCompanyLicence()     { return QStringLiteral("firma_yetki_belgesi"); }
 QString Settings::keyCompanyAddress()     { return QStringLiteral("firma_adres"); }
 QString Settings::keyCompanyPhone()       { return QStringLiteral("firma_telefon"); }
 QString Settings::keyCompanyEmail()       { return QStringLiteral("firma_email"); }

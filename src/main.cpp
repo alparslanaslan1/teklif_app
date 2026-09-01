@@ -23,7 +23,11 @@
 // app.exec() olay döngüsüdür ve pencere kapanana kadar geri dönmez.
 int main(int argc, char *argv[])
 {
-    QCoreApplication::setOrganizationName(QStringLiteral("OzYapi"));
+    // DEĞİŞTİRMEYİN: veritabanının yeri bu iki addan türetilir
+    // (%APPDATA%\KarasuVizyon\Teklif\teklif.db). Sonradan değiştirilirse
+    // kullanıcıların mevcut veritabanı "kayıp" olur — program boş açılır ve
+    // eski dosyayı elle taşımak gerekir.
+    QCoreApplication::setOrganizationName(QStringLiteral("KarasuVizyon"));
     QCoreApplication::setApplicationName(QStringLiteral("Teklif"));
 
     QApplication app(argc, argv);

@@ -112,6 +112,7 @@ void MainWindow::reloadCompanyInfo()
     Settings settings(m_db);
     CompanyInfo firma;
     firma.unvan = settings.valueOr(Settings::keyCompanyName());
+    firma.yetkiBelgesi = settings.valueOr(Settings::keyCompanyLicence());
     firma.adres = settings.valueOr(Settings::keyCompanyAddress());
     firma.telefon = settings.valueOr(Settings::keyCompanyPhone());
     firma.email = settings.valueOr(Settings::keyCompanyEmail());

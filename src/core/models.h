@@ -119,6 +119,14 @@ struct QuoteSummary
 struct CompanyInfo
 {
     QString unvan;
+    // Bayilik / yetki belgesi satırı (örn. "Aksa Doğalgaz Yetkili Firma
+    // (No: 328)"). Antette unvanın hemen altında görünür.
+    //
+    // NEDEN AYRI ALAN: adrese ya da unvana sıkıştırılabilirdi, ama ikisi de
+    // yanlış olurdu — adres bir konum, unvan ise ticari isimdir. Yetki
+    // bilgisi ayrı bir kimlik satırıdır ve boş bırakılabilir olmalıdır;
+    // her firmanın bayiliği yoktur.
+    QString yetkiBelgesi;
     QString adres;
     QString telefon;
     QString email;

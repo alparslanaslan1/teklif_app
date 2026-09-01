@@ -3,6 +3,7 @@
 #include "core/models.h"
 
 #include <QImage>
+#include <QStringList>
 #include <QRectF>
 #include <QVector>
 
@@ -88,6 +89,16 @@ private:
     // Logonun çizileceği dikdörtgen. Logo yoksa boş (isNull) döner ve
     // antet metni sayfanın sol kenarından başlar.
     QRectF logoRect(QPainter *p, const QRectF &pageRect) const;
+
+    // Firma metninin yazılacağı sütun. Logo varsa onun sağından başlar,
+    // sağdaki "TEKLİF / No / Tarih" bloğuna kadar uzanır. Ölçüm ve çizim
+    // AYNI genişliği kullanmak zorunda: farklı olsalardı satır sarma
+    // hesabı tutmaz ve metin ya kesilir ya taşardı.
+    QRectF companyTextRect(QPainter *p, const QRectF &pageRect) const;
+
+    // Firma antetindeki satırlar, boş olanlar elenmiş hâlde.
+    // Vergi dairesi ve numarası etiketlenerek tek satırda birleştirilir.
+    QStringList companyLines() const;
 
     double measureHeader(QPainter *p, const QRectF &pageRect) const;
     double measureTotals(QPainter *p, const QRectF &pageRect) const;

@@ -24,6 +24,7 @@ public:
     // Metin yerine bu sabitleri kullan: yazım hatası derleme hatasına dönüşür.
     static QString keyQuoteCounter();   // teklif no sayacı (sürekli artar)
     static QString keyCompanyName();    // belge antetindeki firma unvanı
+    static QString keyCompanyLicence(); // bayilik / yetki belgesi satırı
     static QString keyCompanyAddress();
     static QString keyCompanyPhone();
     static QString keyCompanyEmail();

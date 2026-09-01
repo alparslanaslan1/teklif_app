@@ -48,6 +48,7 @@ private:
     Settings m_settings;
 
     QLineEdit *m_unvanEdit;
+    QLineEdit *m_yetkiEdit;
     QLineEdit *m_adresEdit;
     QLineEdit *m_telefonEdit;
     QLineEdit *m_emailEdit;

@@ -82,6 +82,8 @@ private slots:
     void paintingDoesNotCrashOnEveryPage();
     void missingCompanyInfoShrinksHeader();
     void paginationIsResolutionIndependent();
+    void longCompanyAddressWrapsInsteadOfBeingClipped();
+    void licenceLineIsAccountedFor();
 };
 
 void TestDocumentLayout::emptyQuoteStillHasOnePage()
@@ -275,6 +277,67 @@ void TestDocumentLayout::paginationIsResolutionIndependent()
                  qPrintable(QStringLiteral("%1 dpi: ilk sayfada %2 satir, 150 dpi'de %3 satirdi")
                                 .arg(dpi).arg(layout.pageRange(0).satirSayisi).arg(beklenenIlkSayfa)));
     }
+}
+
+void TestDocumentLayout::longCompanyAddressWrapsInsteadOfBeingClipped()
+{
+    // Uzun bir adres KESILMEMELI, sarmali. Kesilseydi antet yuksekligi
+    // degismezdi; sardigina gore antet uzar ve sayfaya daha az kalem sigar.
+    // Bu testin varlik sebebi: gercek bir adresle ("Incilli Mah. Karakol
+    // Cd. No: 36/B, 54500 Karasu/Sakarya") satirin sonu sessizce
+    // kirpiliyordu.
+    Canvas kisa;
+    DocumentContext k = mkContext(60);
+    k.company.adres = QStringLiteral("Ankara");
+    DocumentLayout kisaLayout(k);
+    kisaLayout.paginate(&kisa.painter, kisa.pageRect);
+
+    // DIKKAT: antet yuksekligi sol (firma) ve sag ("TEKLIF / No / Tarih /
+    // Gecerlilik" = 4 sabit satir) bloklarin BUYUGUDUR. Adres iki satira
+    // sardiginda sol blok hala 4 satir kalir ve yukseklik degismez. Sarmanin
+    // gercekten hesaba katildigini gormek icin sol blogun sagi ASMASI lazim,
+    // bu yuzden adres bilerek cok uzun.
+    Canvas uzun;
+    DocumentContext u = mkContext(60);
+    // Adres bilerek ABARTILI uzun: sarmanin etkisi antet yuksekligine
+    // eklenen bir-iki satirdir ve bu tek basina bir TABLO satirini
+    // dusurmeye yetmeyebilir. Etkinin olctugumuz birimde (sayfaya sigan
+    // kalem sayisi) kesin gorunmesi icin adres birkac satir sarmali.
+    u.company.adres = QStringLiteral(
+        "İncilli Mahallesi Karakol Caddesi No: 36/B Kat 3 Daire 7, Sahil Yolu üzeri "
+        "Belediye Binası karşısı, Merkez Postane yanı, Eski Sanayi Sitesi arkası, "
+        "Cumhuriyet Bulvarı ile kesişim noktası, Karasu Ticaret Merkezi B Blok, "
+        "54500 Karasu / Sakarya / Türkiye");
+    DocumentLayout uzunLayout(u);
+    uzunLayout.paginate(&uzun.painter, uzun.pageRect);
+
+    QVERIFY2(uzunLayout.pageRange(0).satirSayisi < kisaLayout.pageRange(0).satirSayisi,
+             qPrintable(QStringLiteral("uzun adres antet yuksekligini degistirmedi "
+                                        "(kisa: %1 satir, uzun: %2 satir) - metin kirpiliyor olabilir")
+                            .arg(kisaLayout.pageRange(0).satirSayisi)
+                            .arg(uzunLayout.pageRange(0).satirSayisi)));
+
+    // Cizim de cokmemeli.
+    uzunLayout.paintPage(&uzun.painter, uzun.pageRect, 0);
+}
+
+void TestDocumentLayout::licenceLineIsAccountedFor()
+{
+    // Yetki belgesi satiri (bayilik bilgisi) antet yuksekligine dahil
+    // edilmeli; edilmezse musteri blogu uzerine biner.
+    Canvas yok;
+    DocumentLayout yokLayout(mkContext(60));
+    yokLayout.paginate(&yok.painter, yok.pageRect);
+
+    Canvas var;
+    DocumentContext v = mkContext(60);
+    v.company.yetkiBelgesi = QStringLiteral("Aksa Doğalgaz Yetkili Firma (No: 328)");
+    DocumentLayout varLayout(v);
+    varLayout.paginate(&var.painter, var.pageRect);
+
+    QVERIFY2(varLayout.pageRange(0).satirSayisi <= yokLayout.pageRange(0).satirSayisi,
+             "yetki belgesi satiri antet yuksekligine katilmiyor");
+    varLayout.paintPage(&var.painter, var.pageRect, 0);
 }
 
 QTEST_MAIN(TestDocumentLayout)

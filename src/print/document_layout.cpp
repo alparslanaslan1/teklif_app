@@ -37,6 +37,14 @@ constexpr double kLogoYuksekligiPt = 42.0;
 constexpr double kLogoMaksGenislikOran = 0.35;
 constexpr double kLogoSagBoslukPt = 8.0;
 
+// Antetin dikey bölünme noktası: solda firma bilgisi, sağda "TEKLİF / No /
+// Tarih / Geçerlilik". Sağ blok yalnızca dört kısa satır taşır, bu yüzden
+// yerin çoğu sola bırakılır — adres genelde en uzun satırdır ve gereksiz
+// yere sarmamalıdır.
+// TEK SABİT: ölçüm ve çizim aynı değeri kullanmak zorunda, ayrışırlarsa
+// metin ya kesilir ya taşar.
+constexpr double kAntetBolunmeOrani = 0.60;
+
 // Puntoyu, çizim yapılan aygıtın piksel ölçüsüne çevirir.
 double px(const QPainter *p, double punto)
 {
@@ -122,22 +130,66 @@ QRectF DocumentLayout::logoRect(QPainter *p, const QRectF &pageRect) const
     return QRectF(pageRect.left(), pageRect.top(), w, h);
 }
 
+QRectF DocumentLayout::companyTextRect(QPainter *p, const QRectF &pageRect) const
+{
+    const double sagX = pageRect.left() + pageRect.width() * kAntetBolunmeOrani;
+    const QRectF logo = logoRect(p, pageRect);
+
+    double x = pageRect.left();
+    if (!logo.isNull())
+        x = logo.right() + px(p, kLogoSagBoslukPt);
+
+    const double w = qMax(sagX - x - px(p, kLogoSagBoslukPt), px(p, 40.0));
+    return QRectF(x, pageRect.top(), w, 0);
+}
+
+QStringList DocumentLayout::companyLines() const
+{
+    QStringList satirlar;
+
+    // Vergi dairesi ve numarası çıplak bir sayı olarak basılmamalı;
+    // etiketlenip TEK satırda birleştirilir. İkisinden biri boşsa yalnızca
+    // dolu olan yazılır.
+    QStringList vergi;
+    if (!m_ctx.company.vergiDairesi.trimmed().isEmpty())
+        vergi << QStringLiteral("V.D.: %1").arg(m_ctx.company.vergiDairesi.trimmed());
+    if (!m_ctx.company.vergiNo.trimmed().isEmpty())
+        vergi << QStringLiteral("V.No: %1").arg(m_ctx.company.vergiNo.trimmed());
+
+    for (const QString &s : {m_ctx.company.adres, m_ctx.company.telefon, m_ctx.company.email,
+                              vergi.join(QStringLiteral("   "))}) {
+        if (!s.trimmed().isEmpty())
+            satirlar << s.trimmed();
+    }
+    return satirlar;
+}
+
 double DocumentLayout::measureHeader(QPainter *p, const QRectF &pageRect) const
 {
     const QFontMetricsF fm(baseFont(), p->device());
+    const QFontMetricsF sfm(smallFont(), p->device());
     const double satir = fm.height() + 2.0;
 
-    // Sol blok: firma bilgisi. Boş alanlar hiç satır AÇMAZ — firma bilgisi
-    // girilmemişse antet kendiliğinden kısalır, boş bir dikdörtgen kalmaz.
-    int solSatir = 0;
-    for (const QString &s : {m_ctx.company.unvan, m_ctx.company.adres, m_ctx.company.telefon,
-                              m_ctx.company.email, m_ctx.company.vergiDairesi, m_ctx.company.vergiNo}) {
-        if (!s.trimmed().isEmpty())
-            ++solSatir;
+    const QRectF metinAlani = companyTextRect(p, pageRect);
+
+    // Sol blok: firma bilgisi. Uzun bir adres SARAR, kesilmez — bu yüzden
+    // yükseklik sabit satır sayısıyla değil, gerçekten ölçülerek bulunur.
+    // Boş alanlar hiç satır AÇMAZ: firma bilgisi girilmemişse antet
+    // kendiliğinden kısalır.
+    double solYukseklik = 0.0;
+    if (!m_ctx.company.unvan.trimmed().isEmpty())
+        solYukseklik += satir;
+    if (!m_ctx.company.yetkiBelgesi.trimmed().isEmpty()) {
+        solYukseklik += sfm.boundingRect(QRectF(0, 0, metinAlani.width(), 0), Qt::TextWordWrap,
+                                          m_ctx.company.yetkiBelgesi).height();
+    }
+    for (const QString &l : companyLines()) {
+        solYukseklik += fm.boundingRect(QRectF(0, 0, metinAlani.width(), 0), Qt::TextWordWrap, l)
+                            .height();
     }
 
     // Sağ blok: "TEKLİF" başlığı + no + tarih + geçerlilik = 4 satır sabit.
-    const int sagSatir = 4;
+    const double sagYukseklik = 4 * satir;
 
     // Müşteri bloğu: unvan her zaman, diğerleri doluysa.
     int musteriSatir = 1;
@@ -147,13 +199,12 @@ double DocumentLayout::measureHeader(QPainter *p, const QRectF &pageRect) const
             ++musteriSatir;
     }
 
-    // Sol blok logo ile firma metninin ALT ALTA değil YAN YANA durduğu
-    // bölümdür: yüksekliği ikisinin büyüğü belirler.
+    // Logo, firma metninden uzun olabilir.
     const QRectF logo = logoRect(p, pageRect);
-    const double solBlokYuksekligi = qMax(logo.height(), solSatir * satir);
+    const double solBlokYuksekligi = qMax(logo.height(), solYukseklik);
 
-    double h = qMax(solBlokYuksekligi, sagSatir * satir) + px(p, kBlokBoslukPt);
-    h += satir; // "SAYIN" etiketi
+    double h = qMax(solBlokYuksekligi, sagYukseklik) + px(p, kBlokBoslukPt);
+    h += satir;                               // "SAYIN" etiketi
     h += musteriSatir * satir + px(p, kBlokBoslukPt);
 
     if (!m_ctx.quote.projeBasligi.trimmed().isEmpty())
@@ -295,20 +346,19 @@ void DocumentLayout::paintHeader(QPainter *p, const QRectF &pageRect, double &y)
 {
     const QFontMetricsF fm(baseFont(), p->device());
     const double satir = fm.height() + 2.0;
-    const double sagX = pageRect.left() + pageRect.width() * 0.55;
-    const double sagW = pageRect.width() * 0.45;
+    const double sagX = pageRect.left() + pageRect.width() * kAntetBolunmeOrani;
+    const double sagW = pageRect.width() * (1.0 - kAntetBolunmeOrani);
 
     // Logo varsa sol üste çizilir ve firma metni onun SAĞINDAN başlar.
     // Logo yoksa metinX sayfanın sol kenarıdır — yani logosuz düzen
     // birebir eskisi gibi kalır.
     const QRectF logo = logoRect(p, pageRect);
-    double metinX = pageRect.left();
-    double metinW = pageRect.width() * 0.5;
-    if (!logo.isNull()) {
+    if (!logo.isNull())
         p->drawImage(logo, m_ctx.logo);
-        metinX = logo.right() + px(p, kLogoSagBoslukPt);
-        metinW = sagX - metinX - px(p, kLogoSagBoslukPt);
-    }
+
+    const QRectF metinAlani = companyTextRect(p, pageRect);
+    const double metinX = metinAlani.x();
+    const double metinW = metinAlani.width();
 
     double solY = y;
     p->setFont(boldFont());
@@ -317,14 +367,27 @@ void DocumentLayout::paintHeader(QPainter *p, const QRectF &pageRect, double &y)
                      Qt::AlignLeft | Qt::AlignVCenter, m_ctx.company.unvan);
         solY += satir;
     }
+
+    // Yetki belgesi unvanın hemen altında, gövdeden bir tık küçük: kimlik
+    // bilgisidir ama unvanla aynı ağırlıkta olmamalı.
+    if (!m_ctx.company.yetkiBelgesi.trimmed().isEmpty()) {
+        p->setFont(smallFont());
+        const QFontMetricsF sfm(smallFont(), p->device());
+        const double h = sfm.boundingRect(QRectF(0, 0, metinW, 0), Qt::TextWordWrap,
+                                           m_ctx.company.yetkiBelgesi).height();
+        p->drawText(QRectF(metinX, solY, metinW, h),
+                     Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, m_ctx.company.yetkiBelgesi);
+        solY += h;
+    }
+
+    // Adres uzun olabilir; SARAR, kesilmez. Ölçüm de aynı genişlikle
+    // yapıldığı için antet yüksekliği buna göre hesaplanmıştır.
     p->setFont(baseFont());
-    for (const QString &s : {m_ctx.company.adres, m_ctx.company.telefon, m_ctx.company.email,
-                              m_ctx.company.vergiDairesi, m_ctx.company.vergiNo}) {
-        if (s.trimmed().isEmpty())
-            continue;
-        p->drawText(QRectF(metinX, solY, metinW, satir),
-                     Qt::AlignLeft | Qt::AlignVCenter, s);
-        solY += satir;
+    for (const QString &l : companyLines()) {
+        const double h = fm.boundingRect(QRectF(0, 0, metinW, 0), Qt::TextWordWrap, l).height();
+        p->drawText(QRectF(metinX, solY, metinW, h),
+                     Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, l);
+        solY += h;
     }
 
     double sagY = y;
