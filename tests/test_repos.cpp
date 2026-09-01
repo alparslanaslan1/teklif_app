@@ -3,8 +3,8 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 
-#include "core/db.h"
-#include "core/repo_items.h"
+#include "teklif/core/db.h"
+#include "teklif/core/repo_items.h"
 
 namespace {
 

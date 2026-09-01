@@ -1,11 +1,11 @@
-#include "ui/mainwindow.h"
+#include "teklif/ui/mainwindow.h"
 
-#include "core/db.h"
-#include "core/log.h"
-#include "core/settings.h"
-#include "core/version.h"
-#include "ui/dlg_first_run.h"
-#include "ui/theme.h"
+#include "teklif/core/db.h"
+#include "teklif/core/log.h"
+#include "teklif/core/settings.h"
+#include "teklif/core/version.h"
+#include "teklif/ui/dlg_first_run.h"
+#include "teklif/ui/theme.h"
 
 #include <QApplication>
 #include <QMessageBox>

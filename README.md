@@ -1,7 +1,8 @@
 # Teklif
 
 Qt 6 / C++17 ile yazılmış masaüstü teklif hazırlama programı. Katalogdan kalem
-seçip teklif oluşturur, KDV'li toplamları hesaplar, yazdırır/PDF'e verir.
+seçip teklif oluşturur, toplamları hesaplar, yazdırır/PDF'e verir. Fiyatlar
+KDV dahil girilir; ayrı bir KDV hesabı yapılmaz.
 
 ## Gereksinimler
 
@@ -22,18 +23,42 @@ yapılandırma gerekmez.
 
 ## Proje yapısı
 
+Başlıklar (`.h`) tek bir ağaçta, gerçekleştirim (`.cpp`) dosyalarından ayrı
+durur. Bir katmanın dışarıya ne açtığını görmek için `include/teklif/<katman>/`
+klasörüne bakmak yeterlidir.
+
+```
+include/teklif/core/     başlıklar (.h)      src/core/     gerçekleştirim (.cpp)
+include/teklif/update/                       src/update/
+include/teklif/print/                        src/print/
+include/teklif/ui/                           src/ui/
+```
+
+Her `#include` aynı biçimdedir, dosya nerede olursa olsun:
+
+```cpp
+#include "teklif/core/db.h"
+#include "teklif/ui/page_quote.h"
+```
+
 | Klasör | Sorumluluk |
 |---|---|
+| `include/teklif` | Tüm başlıklar, katman katman. Kod okumaya buradan başlanır. |
 | `src/core` | İş mantığı. Widgets'e bağımlı **değil**, arayüz açmadan test edilebilir. |
 | `src/update` | Otomatik güncelleme. Yalnızca Network'e bağlı, arayüz içermez. |
 | `src/print` | Baskı/PDF ve firma logosu. Ekran ve yazıcı **aynı** yerleşim kodunu kullanır. |
-| `src/ui` | Teklif ekranı ve bileşenleri. Core'a bağımlı, tersi değil. |
+| `src/ui` | Ekranlar ve bileşenleri. Core'a bağımlı, tersi değil. |
+| `cmake` | CMake'in doldurduğu şablonlar (`version.h.in`, `app.rc.in`). |
 | `tests` | Her katman için birim/entegrasyon testleri. |
 | `packaging` | Inno Setup kurulum betiği. |
-| `resources` | Uygulama simgesi ve Windows kaynak şablonu. |
+| `resources` | Uygulama simgesi. |
+
+Her katmanın kendi `CMakeLists.txt` dosyası vardır (`src/<katman>/`). Yeni bir
+dosya eklerken yalnızca o katmanın listesi güncellenir; kök `CMakeLists.txt`
+sürüm/derleyici ayarlarıyla ilgilenir.
 
 Veritabanı programın kurulu olduğu klasörde **değil**, kullanıcının veri
-dizinindedir (Windows'ta `%APPDATA%\OzYapi\Teklif\teklif.db`). Böylece program
+dizinindedir (Windows'ta `%APPDATA%\KarasuVizyon\Teklif\teklif.db`). Böylece program
 güncellendiğinde veri yerinde kalır.
 
 ## Sürüm numarası

@@ -1,9 +1,9 @@
-#include "page_settings.h"
+#include "teklif/ui/page_settings.h"
 
-#include "core/db.h"
-#include "core/repo_quotes.h"
-#include "print/company_logo.h"
-#include "theme.h"
+#include "teklif/core/db.h"
+#include "teklif/core/repo_quotes.h"
+#include "teklif/print/company_logo.h"
+#include "teklif/ui/theme.h"
 
 #include <QApplication>
 #include <QFileDialog>

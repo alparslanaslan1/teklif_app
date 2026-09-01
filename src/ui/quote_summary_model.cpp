@@ -1,4 +1,4 @@
-#include "quote_summary_model.h"
+#include "teklif/ui/quote_summary_model.h"
 
 QuoteSummaryModel::QuoteSummaryModel(QObject *parent) : QAbstractTableModel(parent) {}
 

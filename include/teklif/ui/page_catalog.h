@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/repo_items.h"
+#include "teklif/core/repo_items.h"
 
 #include <QSqlDatabase>
 #include <QWidget>

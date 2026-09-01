@@ -1,6 +1,6 @@
 #include <QtTest/QtTest>
 
-#include "core/numparse.h"
+#include "teklif/core/numparse.h"
 
 class TestNumParse : public QObject
 {

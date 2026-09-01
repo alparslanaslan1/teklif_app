@@ -6,7 +6,7 @@
 #include <QSqlQuery>
 #include <QSqlError>
 
-#include "core/db.h"
+#include "teklif/core/db.h"
 
 namespace {
 

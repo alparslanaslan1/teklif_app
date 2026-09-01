@@ -11,12 +11,12 @@
 #include <QTableView>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/repo_items.h"
-#include "ui/item_table_model.h"
-#include "ui/mainwindow.h"
-#include "ui/page_catalog.h"
-#include "ui/page_quote.h"
+#include "teklif/core/db.h"
+#include "teklif/core/repo_items.h"
+#include "teklif/ui/item_table_model.h"
+#include "teklif/ui/mainwindow.h"
+#include "teklif/ui/page_catalog.h"
+#include "teklif/ui/page_quote.h"
 
 // Part 3'un arayuz tarafi: katalog ekrani.
 

@@ -1,4 +1,4 @@
-#include "item_table_model.h"
+#include "teklif/ui/item_table_model.h"
 
 #include <QColor>
 

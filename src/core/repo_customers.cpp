@@ -1,6 +1,6 @@
-#include "repo_customers.h"
+#include "teklif/core/repo_customers.h"
 
-#include "turkish.h"
+#include "teklif/core/turkish.h"
 
 #include <QSqlError>
 #include <QSqlQuery>

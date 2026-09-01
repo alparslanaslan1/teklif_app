@@ -1,7 +1,7 @@
-#include "quote_line_model.h"
+#include "teklif/ui/quote_line_model.h"
 
-#include "core/calculator.h"
-#include "core/numparse.h"
+#include "teklif/core/calculator.h"
+#include "teklif/core/numparse.h"
 
 namespace {
 

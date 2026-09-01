@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/settings.h"
+#include "teklif/core/settings.h"
 
 #include <QImage>
 #include <QString>

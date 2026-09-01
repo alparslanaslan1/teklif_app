@@ -7,13 +7,13 @@
 #include <QSqlDatabase>
 #include <QTimer>
 
-#include "core/db.h"
-#include "core/repo_customers.h"
-#include "core/repo_items.h"
-#include "ui/dlg_line_entry.h"
-#include "ui/item_search.h"
-#include "ui/page_quote.h"
-#include "ui/quote_line_model.h"
+#include "teklif/core/db.h"
+#include "teklif/core/repo_customers.h"
+#include "teklif/core/repo_items.h"
+#include "teklif/ui/dlg_line_entry.h"
+#include "teklif/ui/item_search.h"
+#include "teklif/ui/page_quote.h"
+#include "teklif/ui/quote_line_model.h"
 
 namespace {
 

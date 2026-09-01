@@ -1,5 +1,5 @@
-#include "item_search.h"
-#include "core/search.h"
+#include "teklif/ui/item_search.h"
+#include "teklif/core/search.h"
 
 #include <QKeyEvent>
 #include <QLineEdit>

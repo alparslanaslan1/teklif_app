@@ -7,10 +7,10 @@
 #include <QSqlDatabase>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/repo_items.h"
-#include "core/settings.h"
-#include "ui/dlg_first_run.h"
+#include "teklif/core/db.h"
+#include "teklif/core/repo_items.h"
+#include "teklif/core/settings.h"
+#include "teklif/ui/dlg_first_run.h"
 
 // Part 9: ilk calistirma sihirbazi.
 

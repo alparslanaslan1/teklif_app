@@ -2,10 +2,10 @@
 #include <QSqlDatabase>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/settings.h"
-#include "update/update_info.h"
-#include "update/updater.h"
+#include "teklif/core/db.h"
+#include "teklif/core/settings.h"
+#include "teklif/update/update_info.h"
+#include "teklif/update/updater.h"
 
 class TestUpdater : public QObject
 {

@@ -1,8 +1,8 @@
-#include "repo_items.h"
+#include "teklif/core/repo_items.h"
 
-#include "csv.h"
-#include "transaction.h"
-#include "turkish.h"
+#include "teklif/core/csv.h"
+#include "teklif/core/transaction.h"
+#include "teklif/core/turkish.h"
 
 #include <QSqlError>
 #include <QSqlQuery>

@@ -1,7 +1,7 @@
 #include <QtTest/QtTest>
 #include <QElapsedTimer>
 
-#include "core/search.h"
+#include "teklif/core/search.h"
 
 namespace {
 

@@ -63,7 +63,7 @@ jobs:
         run: |
           $dist = "dist/TeklifApp"
           New-Item -ItemType Directory -Force -Path $dist | Out-Null
-          Copy-Item build/Release/teklif_app.exe $dist/
+          Copy-Item build/bin/teklif_app.exe $dist/
           windeployqt --release --no-translations --no-opengl-sw $dist/teklif_app.exe
           Compress-Archive -Path "$dist/*" -DestinationPath "teklif-${{ steps.ver.outputs.version }}-win64.zip"
 

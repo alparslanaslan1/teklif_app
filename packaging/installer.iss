@@ -78,7 +78,7 @@ Filename: "{app}\{#AppExeName}"; Description: "{#AppName} programını başlat";
     Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; KULLANICI VERİSİ SİLİNMEZ. Veritabanı %APPDATA%\OzYapi\Teklif\teklif.db
+; KULLANICI VERİSİ SİLİNMEZ. Veritabanı %APPDATA%\KarasuVizyon\Teklif\teklif.db
 ; altındadır ve buraya HİÇ dokunulmaz — program kaldırılıp yeniden kurulsa
 ; da teklifler, müşteriler ve ayarlar yerinde kalır. Yalnızca kurulum
 ; klasöründe kalan artıklar temizlenir.

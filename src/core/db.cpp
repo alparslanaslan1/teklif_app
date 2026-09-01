@@ -1,6 +1,6 @@
-#include "db.h"
+#include "teklif/core/db.h"
 
-#include "log.h"
+#include "teklif/core/log.h"
 
 #include <QCoreApplication>
 #include <QDateTime>

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "core/models.h"
-#include "core/repo_customers.h"
-#include "core/repo_items.h"
-#include "core/repo_quotes.h"
-#include "core/settings.h"
-#include "print/document_layout.h"
+#include "teklif/core/models.h"
+#include "teklif/core/repo_customers.h"
+#include "teklif/core/repo_items.h"
+#include "teklif/core/repo_quotes.h"
+#include "teklif/core/settings.h"
+#include "teklif/print/document_layout.h"
 
 #include <QDate>
 #include <QSqlDatabase>

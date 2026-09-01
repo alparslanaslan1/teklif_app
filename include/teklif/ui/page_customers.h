@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/repo_customers.h"
-#include "core/repo_quotes.h"
+#include "teklif/core/repo_customers.h"
+#include "teklif/core/repo_quotes.h"
 
 #include <QSqlDatabase>
 #include <QWidget>

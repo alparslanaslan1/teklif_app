@@ -1,6 +1,6 @@
-#include "page_customers.h"
+#include "teklif/ui/page_customers.h"
 
-#include "quote_summary_model.h"
+#include "teklif/ui/quote_summary_model.h"
 
 #include <QCheckBox>
 #include <QFormLayout>

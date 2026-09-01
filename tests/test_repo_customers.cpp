@@ -2,8 +2,8 @@
 #include <QTemporaryDir>
 #include <QSqlDatabase>
 
-#include "core/db.h"
-#include "core/repo_customers.h"
+#include "teklif/core/db.h"
+#include "teklif/core/repo_customers.h"
 
 namespace {
 

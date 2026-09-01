@@ -1,4 +1,4 @@
-#include "company_logo.h"
+#include "teklif/print/company_logo.h"
 
 #include <QBuffer>
 #include <QByteArray>

@@ -4,7 +4,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 
-#include "ui/dlg_line_entry.h"
+#include "teklif/ui/dlg_line_entry.h"
 
 namespace {
 

@@ -4,10 +4,10 @@
 #include <QSqlDatabase>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/settings.h"
-#include "print/company_logo.h"
-#include "print/document_layout.h"
+#include "teklif/core/db.h"
+#include "teklif/core/settings.h"
+#include "teklif/print/company_logo.h"
+#include "teklif/print/document_layout.h"
 
 namespace {
 

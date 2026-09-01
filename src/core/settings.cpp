@@ -1,4 +1,4 @@
-#include "settings.h"
+#include "teklif/core/settings.h"
 
 #include <QSqlError>
 #include <QSqlQuery>

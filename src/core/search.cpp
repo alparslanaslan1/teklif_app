@@ -1,4 +1,4 @@
-#include "search.h"
+#include "teklif/core/search.h"
 
 // Arama, iki kovalı bir tarama: aranan metinle BAŞLAYANLAR önce, İÇERENLER
 // sonra. Bu dosyadaki iki uygulama (serbest fonksiyon ve indeks sınıfı) aynı

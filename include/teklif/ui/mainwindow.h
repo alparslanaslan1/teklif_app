@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/models.h"
+#include "teklif/core/models.h"
 
 #include <QMainWindow>
 #include <QUrl>

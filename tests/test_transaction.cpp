@@ -3,8 +3,8 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/transaction.h"
+#include "teklif/core/db.h"
+#include "teklif/core/transaction.h"
 
 class TestTransaction : public QObject
 {

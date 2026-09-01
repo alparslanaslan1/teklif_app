@@ -1,9 +1,9 @@
-#include "repo_quotes.h"
+#include "teklif/core/repo_quotes.h"
 
-#include "quote_status.h"
-#include "settings.h"
-#include "transaction.h"
-#include "turkish.h"
+#include "teklif/core/quote_status.h"
+#include "teklif/core/settings.h"
+#include "teklif/core/transaction.h"
+#include "teklif/core/turkish.h"
 
 #include <QSqlError>
 #include <QSqlQuery>

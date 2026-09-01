@@ -36,3 +36,6 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# ctest çalışma klasörü
+Testing/

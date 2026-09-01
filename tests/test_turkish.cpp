@@ -1,6 +1,6 @@
 #include <QtTest/QtTest>
 
-#include "core/turkish.h"
+#include "teklif/core/turkish.h"
 
 #include <algorithm>
 

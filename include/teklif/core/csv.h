@@ -1,6 +1,6 @@
 #pragma once
 
-#include "models.h"
+#include "teklif/core/models.h"
 
 #include <QHash>
 #include <QString>

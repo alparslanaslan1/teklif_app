@@ -1,6 +1,6 @@
-#include "dlg_first_run.h"
+#include "teklif/ui/dlg_first_run.h"
 
-#include "core/repo_items.h"
+#include "teklif/core/repo_items.h"
 
 #include <QCheckBox>
 #include <QDialogButtonBox>

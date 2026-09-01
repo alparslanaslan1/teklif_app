@@ -1,6 +1,6 @@
-#include "updater.h"
+#include "teklif/update/updater.h"
 
-#include "core/log.h"
+#include "teklif/core/log.h"
 
 #include <QCryptographicHash>
 #include <QDir>

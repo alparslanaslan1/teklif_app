@@ -1,4 +1,4 @@
-#include "update_info.h"
+#include "teklif/update/update_info.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>

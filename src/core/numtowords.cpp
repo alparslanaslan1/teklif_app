@@ -1,4 +1,4 @@
-#include "numtowords.h"
+#include "teklif/core/numtowords.h"
 
 #include <QStringList>
 

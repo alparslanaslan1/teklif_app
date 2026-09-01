@@ -4,10 +4,10 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/quote_status.h"
-#include "core/repo_customers.h"
-#include "core/repo_quotes.h"
+#include "teklif/core/db.h"
+#include "teklif/core/quote_status.h"
+#include "teklif/core/repo_customers.h"
+#include "teklif/core/repo_quotes.h"
 
 // Part 6 (Musteriler ve arsiv) kapsamindaki davranislar.
 

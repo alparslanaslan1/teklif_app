@@ -5,7 +5,7 @@
 #include <QListWidget>
 #include <QSignalSpy>
 
-#include "ui/item_search.h"
+#include "teklif/ui/item_search.h"
 
 namespace {
 

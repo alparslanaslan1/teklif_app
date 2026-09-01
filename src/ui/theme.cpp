@@ -1,4 +1,4 @@
-#include "theme.h"
+#include "teklif/ui/theme.h"
 
 #include <QApplication>
 #include <QFont>

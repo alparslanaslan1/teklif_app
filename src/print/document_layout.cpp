@@ -1,6 +1,6 @@
-#include "document_layout.h"
+#include "teklif/print/document_layout.h"
 
-#include "core/numtowords.h"
+#include "teklif/core/numtowords.h"
 
 #include <QFontMetricsF>
 #include <QPainter>

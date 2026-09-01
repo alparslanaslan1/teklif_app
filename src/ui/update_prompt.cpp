@@ -1,6 +1,6 @@
-#include "update_prompt.h"
+#include "teklif/ui/update_prompt.h"
 
-#include "update/updater.h"
+#include "teklif/update/updater.h"
 
 #include <QCheckBox>
 #include <QMessageBox>

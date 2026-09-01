@@ -1,8 +1,8 @@
 #pragma once
 
-#include "update_info.h"
+#include "teklif/update/update_info.h"
 
-#include "core/settings.h"
+#include "teklif/core/settings.h"
 
 #include <QObject>
 #include <QString>

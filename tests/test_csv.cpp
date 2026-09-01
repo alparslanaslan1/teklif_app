@@ -1,6 +1,6 @@
 #include <QtTest/QtTest>
 
-#include "core/csv.h"
+#include "teklif/core/csv.h"
 
 // csv.cpp'nin dogrudan birim testleri. Daha once yalnizca depo uzerinden
 // dolayli test ediliyordu; tirnakli alan, satir ici yeni satir ve Excel

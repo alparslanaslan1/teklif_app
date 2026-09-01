@@ -1,6 +1,6 @@
 #pragma once
 
-#include "money.h"
+#include "teklif/core/money.h"
 
 #include <QString>
 #include <QtGlobal>

@@ -1,4 +1,4 @@
-#include "quote_table_view.h"
+#include "teklif/ui/quote_table_view.h"
 
 QuoteTableView::QuoteTableView(QWidget *parent) : QTableView(parent) {}
 

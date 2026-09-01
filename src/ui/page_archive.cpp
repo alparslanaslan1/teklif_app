@@ -1,7 +1,7 @@
-#include "page_archive.h"
+#include "teklif/ui/page_archive.h"
 
-#include "core/quote_status.h"
-#include "quote_summary_model.h"
+#include "teklif/core/quote_status.h"
+#include "teklif/ui/quote_summary_model.h"
 
 #include <QCheckBox>
 #include <QComboBox>

@@ -1,7 +1,7 @@
-#include "page_catalog.h"
+#include "teklif/ui/page_catalog.h"
 
-#include "core/money.h"
-#include "item_table_model.h"
+#include "teklif/core/money.h"
+#include "teklif/ui/item_table_model.h"
 
 #include <QCheckBox>
 #include <QComboBox>

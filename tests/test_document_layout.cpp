@@ -2,7 +2,7 @@
 #include <QImage>
 #include <QPainter>
 
-#include "print/document_layout.h"
+#include "teklif/print/document_layout.h"
 
 namespace {
 

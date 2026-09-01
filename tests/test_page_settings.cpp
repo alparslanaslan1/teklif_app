@@ -10,16 +10,16 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/repo_customers.h"
-#include "core/repo_quotes.h"
-#include "core/settings.h"
-#include "print/company_logo.h"
-#include "ui/mainwindow.h"
-#include "ui/page_quote.h"
-#include "ui/quote_line_model.h"
-#include "ui/page_settings.h"
-#include "ui/theme.h"
+#include "teklif/core/db.h"
+#include "teklif/core/repo_customers.h"
+#include "teklif/core/repo_quotes.h"
+#include "teklif/core/settings.h"
+#include "teklif/print/company_logo.h"
+#include "teklif/ui/mainwindow.h"
+#include "teklif/ui/page_quote.h"
+#include "teklif/ui/quote_line_model.h"
+#include "teklif/ui/page_settings.h"
+#include "teklif/ui/theme.h"
 
 // Part 7: ayarlar ekrani, arayuz olcegi, belge yazi boyutu, yedekleme.
 

@@ -1,4 +1,4 @@
-#include "numparse.h"
+#include "teklif/core/numparse.h"
 
 #include <QRegularExpression>
 

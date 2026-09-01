@@ -2,8 +2,8 @@
 #include <QSqlDatabase>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/settings.h"
+#include "teklif/core/db.h"
+#include "teklif/core/settings.h"
 
 class TestSettings : public QObject
 {

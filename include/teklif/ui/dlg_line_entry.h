@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/models.h"
-#include "core/money.h"
+#include "teklif/core/models.h"
+#include "teklif/core/money.h"
 
 #include <QDialog>
 

@@ -1,6 +1,6 @@
 #include <QtTest/QtTest>
 
-#include "core/money.h"
+#include "teklif/core/money.h"
 
 class TestMoney : public QObject
 {

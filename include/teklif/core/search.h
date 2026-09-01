@@ -1,7 +1,7 @@
 #pragma once
 
-#include "models.h"
-#include "turkish.h"
+#include "teklif/core/models.h"
+#include "teklif/core/turkish.h"
 
 #include <QString>
 #include <QVector>

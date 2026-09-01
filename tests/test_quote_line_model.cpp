@@ -1,7 +1,7 @@
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 
-#include "ui/quote_line_model.h"
+#include "teklif/ui/quote_line_model.h"
 
 namespace {
 

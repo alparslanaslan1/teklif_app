@@ -1,6 +1,6 @@
 #include <QtTest/QtTest>
 
-#include "core/calculator.h"
+#include "teklif/core/calculator.h"
 
 class TestCalculator : public QObject
 {

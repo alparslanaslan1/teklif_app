@@ -2,7 +2,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 
-#include "print/print_service.h"
+#include "teklif/print/print_service.h"
 
 namespace {
 

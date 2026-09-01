@@ -1,7 +1,7 @@
-#include "dlg_line_entry.h"
+#include "teklif/ui/dlg_line_entry.h"
 
-#include "core/calculator.h"
-#include "core/numparse.h"
+#include "teklif/core/calculator.h"
+#include "teklif/core/numparse.h"
 
 #include <QDialogButtonBox>
 #include <QFormLayout>

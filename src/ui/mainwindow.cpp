@@ -1,13 +1,13 @@
-#include "mainwindow.h"
+#include "teklif/ui/mainwindow.h"
 
-#include "page_archive.h"
-#include "page_catalog.h"
-#include "page_customers.h"
-#include "page_settings.h"
-#include "theme.h"
-#include "update_prompt.h"
-#include "core/version.h"
-#include "page_quote.h"
+#include "teklif/ui/page_archive.h"
+#include "teklif/ui/page_catalog.h"
+#include "teklif/ui/page_customers.h"
+#include "teklif/ui/page_settings.h"
+#include "teklif/ui/theme.h"
+#include "teklif/ui/update_prompt.h"
+#include "teklif/core/version.h"
+#include "teklif/ui/page_quote.h"
 
 #include <QHBoxLayout>
 #include <QListWidget>

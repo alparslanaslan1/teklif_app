@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/models.h"
-#include "core/search.h"
+#include "teklif/core/models.h"
+#include "teklif/core/search.h"
 
 #include <QVector>
 #include <QWidget>

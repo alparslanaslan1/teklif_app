@@ -1,6 +1,6 @@
 #include <QtTest/QtTest>
 
-#include "core/numtowords.h"
+#include "teklif/core/numtowords.h"
 
 class TestNumToWords : public QObject
 {

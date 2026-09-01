@@ -9,16 +9,16 @@
 #include <QTableView>
 #include <QTemporaryDir>
 
-#include "core/db.h"
-#include "core/quote_status.h"
-#include "core/repo_customers.h"
-#include "core/repo_quotes.h"
-#include "ui/mainwindow.h"
-#include "ui/page_archive.h"
-#include "ui/page_customers.h"
-#include "ui/page_quote.h"
-#include "ui/quote_line_model.h"
-#include "ui/quote_summary_model.h"
+#include "teklif/core/db.h"
+#include "teklif/core/quote_status.h"
+#include "teklif/core/repo_customers.h"
+#include "teklif/core/repo_quotes.h"
+#include "teklif/ui/mainwindow.h"
+#include "teklif/ui/page_archive.h"
+#include "teklif/ui/page_customers.h"
+#include "teklif/ui/page_quote.h"
+#include "teklif/ui/quote_line_model.h"
+#include "teklif/ui/quote_summary_model.h"
 
 // Part 6'nin arayuz tarafi: arsiv ekrani, musteri ekrani ve ikisini teklif
 // ekranina baglayan MainWindow.

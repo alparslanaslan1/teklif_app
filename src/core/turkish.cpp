@@ -1,4 +1,4 @@
-#include "turkish.h"
+#include "teklif/core/turkish.h"
 
 #include <QHash>
 

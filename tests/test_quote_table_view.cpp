@@ -2,8 +2,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-#include "ui/quote_line_model.h"
-#include "ui/quote_table_view.h"
+#include "teklif/ui/quote_line_model.h"
+#include "teklif/ui/quote_table_view.h"
 
 namespace {
 

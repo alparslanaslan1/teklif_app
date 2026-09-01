@@ -1,13 +1,13 @@
-#include "page_quote.h"
+#include "teklif/ui/page_quote.h"
 
-#include "core/calculator.h"
-#include "core/numtowords.h"
-#include "dlg_line_entry.h"
-#include "item_search.h"
-#include "print/company_logo.h"
-#include "print/print_service.h"
-#include "quote_line_model.h"
-#include "quote_table_view.h"
+#include "teklif/core/calculator.h"
+#include "teklif/core/numtowords.h"
+#include "teklif/ui/dlg_line_entry.h"
+#include "teklif/ui/item_search.h"
+#include "teklif/print/company_logo.h"
+#include "teklif/print/print_service.h"
+#include "teklif/ui/quote_line_model.h"
+#include "teklif/ui/quote_table_view.h"
 
 #include <QComboBox>
 #include <QDateEdit>

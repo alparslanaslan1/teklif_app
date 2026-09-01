@@ -1,4 +1,4 @@
-#include "log.h"
+#include "teklif/core/log.h"
 
 #include <QDateTime>
 #include <QDir>
