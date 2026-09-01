@@ -5,6 +5,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+# ---------------------------------------------------------------------------
+# Derleyici uyarıları. Hiç açık değildi; kullanılmayan değişken, imzalı/
+# imzasız karşılaştırma, eksik switch dalı gibi gerçek hataların habercisi
+# olan uyarılar sessizce geçiyordu.
+#
+# Uyarılar HATAYA ÇEVRİLMEZ: Qt başlıkları derleyici sürümüne göre kendi
+# uyarılarını üretebilir ve bu, projeyi bizim kodumuzla ilgisi olmayan bir
+# sebeple derlenemez hale getirirdi.
+# ---------------------------------------------------------------------------
+if(MSVC)
+    add_compile_options(/W3)
+else()
+    add_compile_options(-Wall -Wextra)
+endif()
+
 # Part 4'te Widgets girdi (teklif ekranı). Part 5'te PrintSupport giriyor
 # (baskı/PDF). Network otomatik güncelleme (src/update) için eklendi.
 find_package(Qt6 REQUIRED COMPONENTS Core Sql Widgets PrintSupport Network)
@@ -60,6 +75,8 @@ message(STATUS "TeklifApp sürüm ${TEKLIF_VERSION} (${TEKLIF_GIT_SHA})")
 add_library(teklif_core STATIC
     src/core/money.h
     src/core/money.cpp
+    src/core/log.h
+    src/core/log.cpp
     src/core/turkish.h
     src/core/turkish.cpp
     src/core/transaction.h

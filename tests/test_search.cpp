@@ -121,7 +121,14 @@ void TestSearch::performans5000Kalem()
     const qint64 gecenMs = zaman.elapsed();
 
     QCOMPARE(sonuc.size(), 5000);
-    QVERIFY2(gecenMs < 50, qPrintable(QStringLiteral("5000 kalemde arama %1 ms sürdü").arg(gecenMs)));
+    // Sınır bilerek GENİŞ. Duvar saatiyle dar bir sınır koymak (eskiden
+    // 50 ms'ti) yüklü bir CI makinesinde rastgele kırmızı yakar; oysa burada
+    // yakalanmak istenen şey büyüklük mertebesinde bir gerileme — ör. arama
+    // yolunun kazara O(n²) olması ya da her kalem için veritabanına gidilmesi.
+    // Yazdıkça arama yapan arayüz zaten itemAra'yı değil ItemSearchIndex'i
+    // kullanıyor (bkz. core/search.h).
+    QVERIFY2(gecenMs < 2000,
+             qPrintable(QStringLiteral("5000 kalemde arama %1 ms sürdü").arg(gecenMs)));
 }
 
 QTEST_APPLESS_MAIN(TestSearch)

@@ -1,4 +1,6 @@
 #include <QtTest/QtTest>
+#include <QPushButton>
+#include <QVBoxLayout>
 
 #include "ui/quote_line_model.h"
 #include "ui/quote_table_view.h"
@@ -24,6 +26,8 @@ private slots:
     void tabSkipsReadOnlyColumnsWithinRow();
     void tabWrapsToNextRowFirstEditableColumn();
     void shiftTabSkipsBackward();
+    void tabAtLastCellLeavesTable();
+    void shiftTabAtFirstCellLeavesTable();
 };
 
 void TestQuoteTableView::tabSkipsReadOnlyColumnsWithinRow()
@@ -73,6 +77,68 @@ void TestQuoteTableView::shiftTabSkipsBackward()
 
     QTest::keyClick(&view, Qt::Key_Backtab); // Shift+Tab
     QCOMPARE(view.currentIndex().column(), int(QuoteLineModel::ColMiktar));
+}
+
+void TestQuoteTableView::tabAtLastCellLeavesTable()
+{
+    // ODAK TABLOYA HAPSOLMAMALI. Eskiden son hucrede Tab imleci ilk satira
+    // sariyordu; kullanici klavyeyle Kaydet dugmesine hic ulasamiyordu.
+    QWidget kap;
+    auto *lay = new QVBoxLayout(&kap);
+    auto *view = new QuoteTableView(&kap);
+    auto *sonraki = new QPushButton(QStringLiteral("Kaydet"), &kap);
+    lay->addWidget(view);
+    lay->addWidget(sonraki);
+
+    QuoteLineModel model;
+    Item it;
+    it.ad = QStringLiteral("Kalem"); it.birim = QStringLiteral("adet");
+    model.addLine(it, 1.0, Money(1000), QString());
+    view->setModel(&model);
+
+    kap.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&kap));
+
+    // Tek satirin SON duzenlenebilir hucresi.
+    view->setFocus();
+    view->setCurrentIndex(model.index(0, QuoteLineModel::ColBirimFiyat));
+    QVERIFY(view->hasFocus());
+
+    QTest::keyClick(view, Qt::Key_Tab);
+
+    // Imlec sarmamali ve odak tabloyu terk etmeli.
+    QCOMPARE(view->currentIndex().row(), 0);
+    QCOMPARE(view->currentIndex().column(), int(QuoteLineModel::ColBirimFiyat));
+    QVERIFY2(!view->hasFocus(), "odak hala tabloda - Tab ile cikilamiyor");
+}
+
+void TestQuoteTableView::shiftTabAtFirstCellLeavesTable()
+{
+    QWidget kap;
+    auto *lay = new QVBoxLayout(&kap);
+    auto *onceki = new QPushButton(QStringLiteral("Ara"), &kap);
+    auto *view = new QuoteTableView(&kap);
+    lay->addWidget(onceki);
+    lay->addWidget(view);
+
+    QuoteLineModel model;
+    Item it;
+    it.ad = QStringLiteral("Kalem"); it.birim = QStringLiteral("adet");
+    model.addLine(it, 1.0, Money(1000), QString());
+    view->setModel(&model);
+
+    kap.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&kap));
+
+    // Tek satirin ILK duzenlenebilir hucresi.
+    view->setFocus();
+    view->setCurrentIndex(model.index(0, QuoteLineModel::ColAciklama));
+    QVERIFY(view->hasFocus());
+
+    QTest::keyClick(view, Qt::Key_Backtab);
+
+    QCOMPARE(view->currentIndex().column(), int(QuoteLineModel::ColAciklama));
+    QVERIFY2(!view->hasFocus(), "odak hala tabloda - Shift+Tab ile cikilamiyor");
 }
 
 QTEST_MAIN(TestQuoteTableView)

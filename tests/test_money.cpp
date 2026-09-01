@@ -10,6 +10,7 @@ private slots:
     void parseBasic();
     void parseGrouped();
     void roundTripToString();
+    void rejectsOverflowingInput();
     void multiplyByInt();
     void arithmeticNoPrecisionLoss();
     void kdvHesabi();
@@ -87,6 +88,23 @@ void TestMoney::parseInvalid()
 {
     QFETCH(QString, girdi);
     QVERIFY(!Money::fromString(girdi).has_value());
+}
+
+void TestMoney::rejectsOverflowingInput()
+{
+    // fromString icinde tl * 100 + kr yapiliyor; qint64'un ustunu asan bir
+    // girdi eskiden SESSIZCE tasiyordu (imzali tasma = tanimsiz davranis) ve
+    // sonuc negatif bir tutar olarak gorunebiliyordu. Artik reddediliyor.
+    QVERIFY(!Money::fromString(QStringLiteral("99999999999999999")).has_value());   // 17 hane
+    QVERIFY(!Money::fromString(QStringLiteral("123456789012345678901234")).has_value());
+
+    // Sinirin ALTI hala kabul edilmeli: 16 hane ~ 10 katrilyon TL.
+    const auto sinirda = Money::fromString(QStringLiteral("9999999999999999"));
+    QVERIFY2(sinirda.has_value(), "16 haneli gecerli tutar reddedildi");
+    QVERIFY(!sinirda->isNegative());
+
+    // Gunluk tutarlar elbette etkilenmemeli.
+    QCOMPARE(Money::fromString(QStringLiteral("1.234,56"))->kurus(), 123456LL);
 }
 
 QTEST_APPLESS_MAIN(TestMoney)

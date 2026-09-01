@@ -45,6 +45,7 @@ private slots:
     void failedStepRollsBackAndLeavesFileIntact();
     void cascadeDeleteRemovesQuoteLines();
     void foreignKeysAreEnforced();
+    void oldBackupsArePruned();
 };
 
 void TestMigration::newFileGetsV1Schema()
@@ -249,6 +250,61 @@ void TestMigration::foreignKeysAreEnforced()
         QVERIFY(!ok);
     }
     closeAndRemove(conn);
+}
+
+void TestMigration::oldBackupsArePruned()
+{
+    // Her goc bir .bak birakiyordu ve hicbiri silinmiyordu; zamanla disk
+    // doluyordu. Artik en yeni kSaklananYedek tanesi kaliyor.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("teklif.db"));
+
+    // Gercek bir v1 dosyasi olustur.
+    {
+        QString err;
+        const QString conn = QStringLiteral("prune_seed");
+        QVERIFY2(Db::openAndMigrate(path, &err, conn), qPrintable(err));
+        closeAndRemove(conn);
+    }
+
+    // Elle, gecmise ait fazladan yedekler birak (zaman damgasi sirali).
+    QDir d(dir.path());
+    for (int i = 0; i < Db::kSaklananYedek + 4; ++i) {
+        const QString sahte = path + QStringLiteral(".bak-2020010%1-000000").arg(i);
+        QFile f(sahte);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("eski yedek");
+        f.close();
+    }
+    QVERIFY(d.entryList(QStringList{"teklif.db.bak-*"}).size() > Db::kSaklananYedek);
+
+    // Budama yeni bir yedek alinirken calisir.
+    QString err;
+    Db::backupFile(path, &err);
+
+    const QStringList kalanlar = d.entryList(QStringList{"teklif.db.bak-*"});
+    QVERIFY2(kalanlar.size() <= Db::kSaklananYedek,
+             qPrintable(QStringLiteral("%1 yedek kaldi, en fazla %2 olmali")
+                            .arg(kalanlar.size()).arg(Db::kSaklananYedek)));
+
+    // EN YENILER kalmali. Dosya adlari zaman damgali oldugu icin alfabetik
+    // sira kronolojik siradir; silinenler listenin BASINDAN alinir.
+    // (Ilk yazdigim iddia "hicbir 2020 yedegi kalmamali" idi ve YANLISTI:
+    // 9 sahte + 1 gercek = 10 dosyadan en yeni 5'i kalir, bunlarin bir kismi
+    // hala 2020 tarihlidir. Dogru iddia: EN ESKILER gitmis olmali.)
+    QVERIFY2(!kalanlar.contains(QStringLiteral("teklif.db.bak-20200100-000000")),
+             "en eski yedek silinmemis");
+    QVERIFY2(!kalanlar.contains(QStringLiteral("teklif.db.bak-20200101-000000")),
+             "ikinci en eski yedek silinmemis");
+
+    // Yeni alinan yedek mutlaka durmali - budama onu silmemeli.
+    bool yeniVar = false;
+    for (const QString &ad : kalanlar) {
+        if (!ad.contains(QStringLiteral("bak-2020")))
+            yeniVar = true;
+    }
+    QVERIFY2(yeniVar, "yeni alinan yedek budamada silinmis");
 }
 
 QTEST_MAIN(TestMigration)

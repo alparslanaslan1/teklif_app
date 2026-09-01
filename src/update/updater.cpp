@@ -1,5 +1,7 @@
 #include "updater.h"
 
+#include "core/log.h"
+
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -85,6 +87,9 @@ void Updater::checkForUpdate()
         if (reply->error() != QNetworkReply::NoError) {
             // İnternet yok, sunucu kapalı, zaman aşımı... Hepsi aynı sonuç:
             // güncelleme atlanır, program normal açılır.
+            // Kullanıcıya gösterilmediği için günlüğe yazılır: "güncelleme
+            // hiç gelmiyor" şikayetinin tek izi budur.
+            qCWarning(logUpdate) << "güncelleme denetimi başarısız:" << reply->errorString();
             emit checkFailed(reply->errorString());
             return;
         }
@@ -92,10 +97,13 @@ void Updater::checkForUpdate()
         QString parseErr;
         const auto info = parseUpdateManifest(reply->readAll(), &parseErr);
         if (!info.has_value()) {
+            qCWarning(logUpdate) << "güncelleme bilgisi okunamadı:" << parseErr;
             emit checkFailed(parseErr);
             return;
         }
 
+        qCInfo(logUpdate) << "sunucudaki sürüm:" << info->version
+                           << "çalışan:" << m_currentVersion;
         if (compareVersions(info->version, m_currentVersion) > 0)
             emit updateAvailable(info.value());
         else

@@ -70,6 +70,16 @@ std::optional<Money> Money::fromString(const QString &metinHam)
     else if (ondalikKisim.length() == 1)
         ondalikKisim += QLatin1Char('0');
 
+    // TAŞMA KORUMASI: aşağıdaki tl * 100 + kr işlemi qint64'e sığmalı.
+    // qint64'ün üst sınırı ~9,2 × 10^18 olduğundan lira kısmı en fazla 16
+    // hane olabilir. Regex basamak sayısını sınırlamadığı için bu kontrol
+    // olmadan yeterince uzun bir girdi SESSİZCE taşardı (imzalı taşma =
+    // tanımsız davranış) ve sonuç negatif bir tutar olarak görünebilirdi.
+    // 16 hane = 10 katrilyon TL; gerçek bir teklifte asla ulaşılmaz.
+    constexpr int kMaksTamHane = 16;
+    if (tamKisim.size() > kMaksTamHane)
+        return std::nullopt;
+
     bool tamOk = false, ondalikOk = false;
     const qint64 tl = tamKisim.toLongLong(&tamOk);
     const qint64 kr = ondalikKisim.toLongLong(&ondalikOk);

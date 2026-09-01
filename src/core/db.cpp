@@ -1,5 +1,7 @@
 #include "db.h"
 
+#include "log.h"
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -18,6 +20,10 @@ namespace {
 bool execOrFail(QSqlQuery &q, const QString &sql, QString *errorOut)
 {
     if (!q.exec(sql)) {
+        // Hangi ifadenin öldüğü kullanıcıya gösterilen mesajda yok; günlükte
+        // olması migration sorunlarını uzaktan teşhis etmenin tek yolu.
+        qCWarning(logDb) << "SQL başarısız:" << sql.simplified().left(120)
+                          << "->" << q.lastError().text();
         if (errorOut)
             *errorOut = q.lastError().text();
         return false;
@@ -93,7 +99,31 @@ bool Db::backupFile(const QString &path, QString *errorOut)
             *errorOut = QStringLiteral("Yedek alınamadı: %1").arg(backupPath);
         return false;
     }
+
+    // Yeni yedek alındıktan SONRA budanır: budama başarısız olsa bile
+    // elimizde taze bir yedek vardır.
+    pruneBackups(path);
     return true;
+}
+
+void Db::pruneBackups(const QString &path)
+{
+    const QFileInfo bilgi(path);
+    QDir klasor = bilgi.absoluteDir();
+
+    // Dosya adları "<ad>.bak-YYYYAAGG-SSDDss" biçiminde olduğu için
+    // alfabetik sıra = kronolojik sıra; ayrıca dosya tarihine bakmaya
+    // gerek yok (kopyalama tarihi yanıltıcı olabilirdi).
+    QStringList yedekler =
+        klasor.entryList(QStringList{bilgi.fileName() + QStringLiteral(".bak-*")}, QDir::Files);
+    yedekler.sort();
+
+    while (yedekler.size() > kSaklananYedek) {
+        const QString eskisi = yedekler.takeFirst();
+        // Silinemezse (dosya kilitli, izin yok) sessizce geçilir: budama
+        // bir kolaylıktır, başarısızlığı migration'ı durdurmamalı.
+        QFile::remove(klasor.filePath(eskisi));
+    }
 }
 
 
@@ -270,6 +300,7 @@ bool Db::openAndMigrate(const QString &path, QString *errorOut, const QString &c
         QSqlDatabase::database(connectionName).close();
         QSqlDatabase::removeDatabase(connectionName);
 
+        qCInfo(logDb) << "şema göçü öncesi yedek alınıyor:" << path;
         if (!backupFile(path, errorOut))
             return false;
 
@@ -290,6 +321,7 @@ bool Db::openAndMigrate(const QString &path, QString *errorOut, const QString &c
             return false;
         }
 
+        qCInfo(logDb) << "şema göçü:" << version << "->" << version + 1;
         const int nextVersion = version + 1;
         if (!setVersion(db, nextVersion)) {
             QSqlQuery rb(db);

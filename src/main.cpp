@@ -1,6 +1,7 @@
 #include "ui/mainwindow.h"
 
 #include "core/db.h"
+#include "core/log.h"
 #include "core/settings.h"
 #include "core/version.h"
 #include "ui/dlg_first_run.h"
@@ -32,8 +33,14 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
 
+    // Günlük, veritabanı açılmadan ÖNCE kurulur: açılış hataları da kayda
+    // geçsin. Kullanıcının veri dizinine yazar (teklif.db'nin yanına).
+    Log::install();
+    qCInfo(logApp) << "Teklif" << APP_VERSION << "başlıyor;" << APP_GIT_SHA;
+
     QString err;
     if (!Db::openAndMigrate(Db::defaultPath(), &err)) {
+        qCCritical(logDb) << "veritabanı açılamadı:" << Db::defaultPath() << err;
         QMessageBox::critical(nullptr, QStringLiteral("Veritabanı açılamadı"), err);
         return 1;
     }

@@ -18,6 +18,11 @@ public:
     // Uygulamanın bildiği en güncel şema sürümü.
     static constexpr int kSchemaVersion = 1;
 
+    // Migration öncesi alınan .bak dosyalarından kaç tanesi saklanır.
+    // Sınırsız biriktirmek diski yavaşça doldurur; tek bir yedek bırakmak da
+    // arka arkaya iki hatalı göçte geri dönülecek noktayı yok eder.
+    static constexpr int kSaklananYedek = 5;
+
     // Veritabanını açar; dosya yoksa oluşturur; şema güncel değilse göçürür.
     // Var olan bir dosya göçürülmeden önce aynı klasöre "<ad>.bak-YYYYMMDD-HHMMSS"
     // adıyla ham kopyası alınır. Göç bir adımda başarısız olursa o adımın
@@ -35,10 +40,17 @@ public:
     // altında, güncelleme sırasında exe değişse de veri yerinde kalır.
     static QString defaultPath();
 
+    // Dosyanın "<yol>.bak-YYYYAAGG-SSDDss" kopyasını alır ve ardından eski
+    // yedekleri budar. Normalde yalnızca göç öncesinde çağrılır; testlerin
+    // budamayı doğrulayabilmesi için açık.
+    static bool backupFile(const QString &path, QString *errorOut);
+
+    // En yeni kSaklananYedek adet .bak dosyasını bırakır, eskilerini siler.
+    static void pruneBackups(const QString &path);
+
 private:
     static int currentVersion(QSqlDatabase &db);
     static bool setVersion(QSqlDatabase &db, int version);
-    static bool backupFile(const QString &path, QString *errorOut);
     static bool migrateStep(QSqlDatabase &db, int fromVersion, QString *errorOut);
     static bool createV1Schema(QSqlDatabase &db, QString *errorOut);
 };
