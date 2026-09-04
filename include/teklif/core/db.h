@@ -16,7 +16,7 @@ class Db
 {
 public:
     // Uygulamanın bildiği en güncel şema sürümü.
-    static constexpr int kSchemaVersion = 1;
+    static constexpr int kSchemaVersion = 2;
 
     // Migration öncesi alınan .bak dosyalarından kaç tanesi saklanır.
     // Sınırsız biriktirmek diski yavaşça doldurur; tek bir yedek bırakmak da
@@ -53,4 +53,6 @@ private:
     static bool setVersion(QSqlDatabase &db, int version);
     static bool migrateStep(QSqlDatabase &db, int fromVersion, QString *errorOut);
     static bool createV1Schema(QSqlDatabase &db, QString *errorOut);
+    // v1 -> v2: müşteri bilgisi ayrı tablodan teklifin içine taşınır.
+    static bool migrateV1ToV2(QSqlDatabase &db, QString *errorOut);
 };

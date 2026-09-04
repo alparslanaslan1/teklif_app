@@ -2,7 +2,6 @@
 
 #include "teklif/ui/page_archive.h"
 #include "teklif/ui/page_catalog.h"
-#include "teklif/ui/page_customers.h"
 #include "teklif/ui/page_settings.h"
 #include "teklif/ui/theme.h"
 #include "teklif/ui/update_prompt.h"
@@ -11,11 +10,18 @@
 
 #include <QHBoxLayout>
 #include <QListWidget>
+#include <QListWidgetItem>
 #include <QApplication>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QStackedWidget>
 #include <QWidget>
+
+namespace {
+// Sol menünün genişliği ve satır yüksekliği.
+constexpr int kNavGenislik = 190;
+constexpr int kNavSatirYuksekligi = 40;
+} // namespace
 
 MainWindow::MainWindow(QSqlDatabase db, QWidget *parent) : QMainWindow(parent), m_db(db)
 {
@@ -27,12 +33,17 @@ void MainWindow::setupUi(QSqlDatabase db)
 {
     m_nav = new QListWidget(this);
     m_nav->setObjectName(QStringLiteral("navList"));
-    m_nav->setMaximumWidth(180);
-    m_nav->addItem(QStringLiteral("Teklif"));
-    m_nav->addItem(QStringLiteral("Arşiv"));
-    m_nav->addItem(QStringLiteral("Katalog"));
-    m_nav->addItem(QStringLiteral("Müşteriler"));
-    m_nav->addItem(QStringLiteral("Ayarlar"));
+    m_nav->setFixedWidth(kNavGenislik);
+    m_nav->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    for (const QString &ad : {QStringLiteral("Teklif"), QStringLiteral("Arşiv"),
+                              QStringLiteral("Katalog"), QStringLiteral("Ayarlar")}) {
+        auto *satir = new QListWidgetItem(ad, m_nav);
+        // Yükseklik ELLE veriliyor: stil sayfasındaki ::item dolgusu satır
+        // yüksekliğini BÜYÜTMEZ, yalnızca içeriği kaydırır. Verilmezse
+        // satırlar yazı yüksekliği kadar kalır, seçili satırın vurgusu
+        // komşularının üzerine taşar ve menü üst üste binmiş görünür.
+        satir->setSizeHint(QSize(0, kNavSatirYuksekligi));
+    }
 
     m_stack = new QStackedWidget(this);
     m_stack->setObjectName(QStringLiteral("pageStack"));
@@ -43,8 +54,6 @@ void MainWindow::setupUi(QSqlDatabase db)
     m_pageArchive->setObjectName(QStringLiteral("pageArchive"));
     m_pageCatalog = new PageCatalog(db, this);
     m_pageCatalog->setObjectName(QStringLiteral("pageCatalog"));
-    m_pageCustomers = new PageCustomers(db, this);
-    m_pageCustomers->setObjectName(QStringLiteral("pageCustomers"));
     m_pageSettings = new PageSettings(db, this);
     m_pageSettings->setObjectName(QStringLiteral("pageSettings"));
 
@@ -52,7 +61,6 @@ void MainWindow::setupUi(QSqlDatabase db)
     m_stack->addWidget(m_pageQuote);
     m_stack->addWidget(m_pageArchive);
     m_stack->addWidget(m_pageCatalog);
-    m_stack->addWidget(m_pageCustomers);
     m_stack->addWidget(m_pageSettings);
 
     connect(m_nav, &QListWidget::currentRowChanged, this, [this](int row) {
@@ -60,21 +68,18 @@ void MainWindow::setupUi(QSqlDatabase db)
             return;
         m_stack->setCurrentIndex(row);
         // Sayfaya her girişte tazelenir: başka bir sayfada kaydedilen teklif
-        // ya da eklenen müşteri burada görünmelidir.
+        // ya da eklenen katalog kalemi burada görünmelidir.
         if (row == PageArchiveIndex)
             m_pageArchive->refresh();
         else if (row == PageCatalogIndex)
             m_pageCatalog->refresh();
-        else if (row == PageCustomersIndex)
-            m_pageCustomers->refresh();
         else if (row == PageSettingsIndex)
             m_pageSettings->refresh();
     });
 
-    // Arşivden ve müşteri kartından gelen "bu teklifi aç" istekleri.
+    // Arşivden gelen "bu teklifi aç" istekleri.
     connect(m_pageArchive, &PageArchive::quoteOpenRequested, this, &MainWindow::openQuote);
     connect(m_pageArchive, &PageArchive::quoteDuplicated, this, &MainWindow::openQuote);
-    connect(m_pageCustomers, &PageCustomers::quoteOpenRequested, this, &MainWindow::openQuote);
 
     // Silinen teklif ekranda açıksa form boşaltılır; yoksa kullanıcı artık
     // var olmayan bir kaydı güncellemeye çalışır ve "teklif bulunamadı"
@@ -84,16 +89,12 @@ void MainWindow::setupUi(QSqlDatabase db)
             m_pageQuote->newQuote();
     });
 
-    // Müşteri eklendiğinde teklif ekranındaki açılır liste bayatlamasın.
-    connect(m_pageCustomers, &PageCustomers::customersChanged, this,
-            [this] { m_pageQuote->reloadCustomers(); });
-
     // Katalog değiştiğinde teklif ekranındaki arama indeksi bayatlamasın:
     // yeni eklenen kalem hemen aranabilir olmalı.
     connect(m_pageCatalog, &PageCatalog::catalogChanged, this,
             [this] { m_pageQuote->reloadCatalog(); });
 
-    // Ayarlar kaydedilince antet, KDV oranı ve şartlar metni tazelenir;
+    // Ayarlar kaydedilince antet ve şartlar metni tazelenir;
     // kullanıcı ayarları girip hemen yazdırabilmeli.
     connect(m_pageSettings, &PageSettings::companyInfoChanged, this, [this] {
         reloadCompanyInfo();
@@ -162,7 +163,6 @@ void MainWindow::reloadAfterFirstRun()
     reloadCompanyInfo();
     m_pageQuote->reloadSettings();
     m_pageQuote->reloadCatalog();
-    m_pageQuote->reloadCustomers();
     m_pageCatalog->refresh();
     m_pageSettings->refresh();
 }

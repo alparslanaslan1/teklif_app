@@ -26,17 +26,20 @@ private:
     QString m_conn;
     QSqlDatabase m_db;
 
-    int customerCount()
+    // Transaction davranisini olcmek icin en basit tablo yeter; categories
+    // tek sutunlu ve baska hicbir seye bagli degil, bu yuzden testin konusu
+    // (commit/rollback) disinda hicbir sey karismaz.
+    int rowCount()
     {
         QSqlQuery q(m_db);
-        return (q.exec(QStringLiteral("SELECT COUNT(*) FROM customers")) && q.next())
+        return (q.exec(QStringLiteral("SELECT COUNT(*) FROM categories")) && q.next())
                    ? q.value(0).toInt() : -1;
     }
-    bool insertCustomer(const QString &unvan)
+    bool insertRow(const QString &ad)
     {
         QSqlQuery q(m_db);
-        q.prepare(QStringLiteral("INSERT INTO customers (unvan) VALUES (:u)"));
-        q.bindValue(QStringLiteral(":u"), unvan);
+        q.prepare(QStringLiteral("INSERT INTO categories (ad) VALUES (:u)"));
+        q.bindValue(QStringLiteral(":u"), ad);
         return q.exec();
     }
 };
@@ -65,11 +68,11 @@ void TestTransaction::commitPersists()
     {
         Transaction tx(m_db);
         QVERIFY2(tx.isActive(), qPrintable(tx.lastError()));
-        QVERIFY(insertCustomer(QStringLiteral("Kalıcı")));
+        QVERIFY(insertRow(QStringLiteral("Kalıcı")));
         QString err;
         QVERIFY2(tx.commit(&err), qPrintable(err));
     }
-    QCOMPARE(customerCount(), 1);
+    QCOMPARE(rowCount(), 1);
 }
 
 void TestTransaction::destructorRollsBackWhenNotCommitted()
@@ -77,10 +80,10 @@ void TestTransaction::destructorRollsBackWhenNotCommitted()
     {
         Transaction tx(m_db);
         QVERIFY(tx.isActive());
-        QVERIFY(insertCustomer(QStringLiteral("Geri alinacak")));
+        QVERIFY(insertRow(QStringLiteral("Geri alinacak")));
         // commit() YOK — kapsamdan cikinca yikici ROLLBACK etmeli.
     }
-    QCOMPARE(customerCount(), 0);
+    QCOMPARE(rowCount(), 0);
 }
 
 void TestTransaction::earlyReturnRollsBack()
@@ -90,13 +93,13 @@ void TestTransaction::earlyReturnRollsBack()
         Transaction tx(m_db);
         if (!tx.isActive())
             return false;
-        if (!insertCustomer(QStringLiteral("Birinci")))
+        if (!insertRow(QStringLiteral("Birinci")))
             return false;
         return false; // "bir sey ters gitti" — commit edilmeden cikiliyor
     };
 
     QVERIFY(!islem());
-    QCOMPARE(customerCount(), 0);
+    QCOMPARE(rowCount(), 0);
 }
 
 void TestTransaction::nestedTransactionIsRejected()
@@ -111,10 +114,10 @@ void TestTransaction::nestedTransactionIsRejected()
     QVERIFY(!ic.lastError().isEmpty());
 
     // Ictekinin yikicisi distakini bozmamali: dis hala islevsel olmali.
-    QVERIFY(insertCustomer(QStringLiteral("Dis islem")));
+    QVERIFY(insertRow(QStringLiteral("Dis islem")));
     QString err;
     QVERIFY2(dis.commit(&err), qPrintable(err));
-    QCOMPARE(customerCount(), 1);
+    QCOMPARE(rowCount(), 1);
 }
 
 void TestTransaction::commitAfterRollbackFails()
@@ -133,10 +136,10 @@ void TestTransaction::explicitRollbackWorks()
 {
     {
         Transaction tx(m_db);
-        QVERIFY(insertCustomer(QStringLiteral("Elle geri alinan")));
+        QVERIFY(insertRow(QStringLiteral("Elle geri alinan")));
         tx.rollback();
     }
-    QCOMPARE(customerCount(), 0);
+    QCOMPARE(rowCount(), 0);
 }
 
 QTEST_MAIN(TestTransaction)

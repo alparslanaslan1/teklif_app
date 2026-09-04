@@ -12,6 +12,50 @@
 
 RepoQuotes::RepoQuotes(QSqlDatabase db) : m_db(std::move(db)) {}
 
+namespace {
+
+// Müşteri alanlarını hazırlanmış sorguya bağlar. INSERT ve UPDATE aynı
+// yer tutucu adlarını kullandığı için tek bir yerde toplanır — yeni bir
+// müşteri alanı eklendiğinde iki ayrı SQL'i ayrı ayrı güncelleme riski
+// (birini unutup sessizce veri kaybetme) ortadan kalkar.
+void bindCustomer(QSqlQuery &q, const Customer &m)
+{
+    q.bindValue(QStringLiteral(":unvan"), m.unvan);
+    q.bindValue(QStringLiteral(":yetkili"), m.yetkili);
+    q.bindValue(QStringLiteral(":telefon"), m.telefon);
+    q.bindValue(QStringLiteral(":email"), m.email);
+    q.bindValue(QStringLiteral(":adres"), m.adres);
+    q.bindValue(QStringLiteral(":vd"), m.vergiDairesi);
+    q.bindValue(QStringLiteral(":vno"), m.vergiNo);
+}
+
+// Boş bir QString'i NULL'a düşmekten korur.
+//
+// NEDEN GEREKLİ: varsayılan kurulmuş bir QString "null"dur ve Qt onu SQL
+// NULL olarak bağlar. quote_lines.aciklama ve .birim NOT NULL olduğu için
+// kullanıcının boş bıraktığı bir birim hücresi kaydı düşürüyordu — elle
+// satır girme geldikten sonra bu artık sıradan bir durum.
+QString bosDegil(const QString &s)
+{
+    return s.isNull() ? QString(QLatin1String("")) : s;
+}
+
+// bindCustomer'ın tersi: okunan satırdan müşteri bilgisini kurar.
+Customer readCustomer(const QSqlQuery &q)
+{
+    Customer m;
+    m.unvan = q.value(QStringLiteral("musteri_unvan")).toString();
+    m.yetkili = q.value(QStringLiteral("musteri_yetkili")).toString();
+    m.telefon = q.value(QStringLiteral("musteri_telefon")).toString();
+    m.email = q.value(QStringLiteral("musteri_email")).toString();
+    m.adres = q.value(QStringLiteral("musteri_adres")).toString();
+    m.vergiDairesi = q.value(QStringLiteral("musteri_vergi_dairesi")).toString();
+    m.vergiNo = q.value(QStringLiteral("musteri_vergi_no")).toString();
+    return m;
+}
+
+} // namespace
+
 
 // Sıradaki teklif numarasını üretir ve sayacı artırır ("000001", "000002" ...).
 // İsmindeki "Locked", çağrıldığı yerde ZATEN açık bir transaction bulunması
@@ -76,11 +120,11 @@ bool RepoQuotes::insertLines(qint64 quoteId, const QVector<QuoteLine> &lines,
     for (const QuoteLine &l : lines) {
         q.bindValue(QStringLiteral(":qid"), quoteId);
         q.bindValue(QStringLiteral(":sira"), l.sira);
-        q.bindValue(QStringLiteral(":aciklama"), l.aciklama);
-        q.bindValue(QStringLiteral(":birim"), l.birim);
+        q.bindValue(QStringLiteral(":aciklama"), bosDegil(l.aciklama));
+        q.bindValue(QStringLiteral(":birim"), bosDegil(l.birim));
         q.bindValue(QStringLiteral(":miktar"), l.miktar);
         q.bindValue(QStringLiteral(":fiyat"), l.birimFiyat.kurus());
-        q.bindValue(QStringLiteral(":notu"), l.satirNotu);
+        q.bindValue(QStringLiteral(":notu"), bosDegil(l.satirNotu));
         q.bindValue(QStringLiteral(":tutar"), l.tutar.kurus());
         if (!q.exec()) {
             if (errorOut)
@@ -120,11 +164,14 @@ bool RepoQuotes::add(Quote &quote, QString *errorOut)
 
     QSqlQuery ins(m_db);
     ins.prepare(QStringLiteral(
-        "INSERT INTO quotes (teklif_no, customer_id, tarih, gecerlilik_gun, proje_basligi, proje_notu, "
+        "INSERT INTO quotes (teklif_no, musteri_unvan, musteri_yetkili, musteri_telefon, "
+        "musteri_email, musteri_adres, musteri_vergi_dairesi, musteri_vergi_no, "
+        "tarih, gecerlilik_gun, proje_basligi, proje_notu, "
         "durum, sartlar_metni, ara_toplam, kdv_orani, kdv_tutari, genel_toplam) "
-        "VALUES (:no, :cust, :tarih, :gecerlilik, :baslik, :notu, :durum, :sartlar, :ara, :kdvo, :kdvt, :genel)"));
+        "VALUES (:no, :unvan, :yetkili, :telefon, :email, :adres, :vd, :vno, "
+        ":tarih, :gecerlilik, :baslik, :notu, :durum, :sartlar, :ara, :kdvo, :kdvt, :genel)"));
     ins.bindValue(QStringLiteral(":no"), teklifNo);
-    ins.bindValue(QStringLiteral(":cust"), quote.customerId);
+    bindCustomer(ins, quote.musteri);
     ins.bindValue(QStringLiteral(":tarih"), quote.tarih.toString(Qt::ISODate));
     ins.bindValue(QStringLiteral(":gecerlilik"), quote.gecerlilikGun);
     ins.bindValue(QStringLiteral(":baslik"), quote.projeBasligi);
@@ -167,11 +214,14 @@ bool RepoQuotes::update(const Quote &quote, QString *errorOut)
 
     QSqlQuery upd(m_db);
     upd.prepare(QStringLiteral(
-        "UPDATE quotes SET customer_id=:cust, tarih=:tarih, gecerlilik_gun=:gecerlilik, "
+        "UPDATE quotes SET musteri_unvan=:unvan, musteri_yetkili=:yetkili, "
+        "musteri_telefon=:telefon, musteri_email=:email, musteri_adres=:adres, "
+        "musteri_vergi_dairesi=:vd, musteri_vergi_no=:vno, "
+        "tarih=:tarih, gecerlilik_gun=:gecerlilik, "
         "proje_basligi=:baslik, proje_notu=:notu, durum=:durum, sartlar_metni=:sartlar, "
         "ara_toplam=:ara, kdv_orani=:kdvo, kdv_tutari=:kdvt, genel_toplam=:genel, "
         "guncelleme=datetime('now') WHERE id=:id"));
-    upd.bindValue(QStringLiteral(":cust"), quote.customerId);
+    bindCustomer(upd, quote.musteri);
     upd.bindValue(QStringLiteral(":tarih"), quote.tarih.toString(Qt::ISODate));
     upd.bindValue(QStringLiteral(":gecerlilik"), quote.gecerlilikGun);
     upd.bindValue(QStringLiteral(":baslik"), quote.projeBasligi);
@@ -229,7 +279,7 @@ std::optional<Quote> RepoQuotes::get(qint64 id, QString *errorOut) const
     Quote quote;
     quote.id = q.value(QStringLiteral("id")).toLongLong();
     quote.teklifNo = q.value(QStringLiteral("teklif_no")).toString();
-    quote.customerId = q.value(QStringLiteral("customer_id")).toLongLong();
+    quote.musteri = readCustomer(q);
     quote.tarih = QDate::fromString(q.value(QStringLiteral("tarih")).toString(), Qt::ISODate);
     quote.gecerlilikGun = q.value(QStringLiteral("gecerlilik_gun")).toInt();
     quote.projeBasligi = q.value(QStringLiteral("proje_basligi")).toString();
@@ -273,34 +323,26 @@ QVector<QuoteSummary> RepoQuotes::list(const QuoteFilter &filtre, QString *error
 {
     QVector<QuoteSummary> sonuc;
 
-    // Müşteri unvanı JOIN ile gelir: liste satırı başına ayrı sorgu atmak
-    // (N+1) 500 teklifte 501 sorgu demekti.
-    // LEFT JOIN, INNER değil — müşterisi bir şekilde kaybolmuş bir teklif
-    // listeden düşmemeli, unvansız görünmeli.
+    // Müşteri unvanı teklifin kendi sütununda; JOIN yok, satır başına ek
+    // sorgu da yok.
     QString sql = QStringLiteral(
-        "SELECT q.id, q.teklif_no, q.customer_id, q.tarih, q.durum, q.genel_toplam, "
-        "       q.proje_basligi, c.unvan AS musteri_unvan "
-        "FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id WHERE 1=1");
-
-    if (filtre.customerId != 0)
-        sql += QStringLiteral(" AND q.customer_id = :cust");
+        "SELECT id, teklif_no, musteri_unvan, tarih, durum, genel_toplam, proje_basligi "
+        "FROM quotes WHERE 1=1");
     // tarih ISO metni ("2026-08-25") olarak saklandığı için metin
     // karşılaştırması kronolojik sırayla birebir örtüşür; ayrı bir tarih
     // dönüşümüne gerek yoktur. Sınırlar DAHİLDİR (>=, <=).
     if (filtre.tarihBaslangic.isValid())
-        sql += QStringLiteral(" AND q.tarih >= :bas");
+        sql += QStringLiteral(" AND tarih >= :bas");
     if (filtre.tarihBitis.isValid())
-        sql += QStringLiteral(" AND q.tarih <= :bit");
+        sql += QStringLiteral(" AND tarih <= :bit");
     if (!filtre.durum.isEmpty())
-        sql += QStringLiteral(" AND q.durum = :durum");
+        sql += QStringLiteral(" AND durum = :durum");
 
     // En yeni önce; aynı tarihte birden fazla teklif varsa numaraya göre.
-    sql += QStringLiteral(" ORDER BY q.tarih DESC, q.teklif_no DESC");
+    sql += QStringLiteral(" ORDER BY tarih DESC, teklif_no DESC");
 
     QSqlQuery q(m_db);
     q.prepare(sql);
-    if (filtre.customerId != 0)
-        q.bindValue(QStringLiteral(":cust"), filtre.customerId);
     if (filtre.tarihBaslangic.isValid())
         q.bindValue(QStringLiteral(":bas"), filtre.tarihBaslangic.toString(Qt::ISODate));
     if (filtre.tarihBitis.isValid())
@@ -322,15 +364,14 @@ QVector<QuoteSummary> RepoQuotes::list(const QuoteFilter &filtre, QString *error
         QuoteSummary s;
         s.id = q.value(QStringLiteral("id")).toLongLong();
         s.teklifNo = q.value(QStringLiteral("teklif_no")).toString();
-        s.customerId = q.value(QStringLiteral("customer_id")).toLongLong();
-        s.customerUnvan = q.value(QStringLiteral("musteri_unvan")).toString();
+        s.musteriUnvan = q.value(QStringLiteral("musteri_unvan")).toString();
         s.tarih = QDate::fromString(q.value(QStringLiteral("tarih")).toString(), Qt::ISODate);
         s.durum = q.value(QStringLiteral("durum")).toString();
         s.genelToplam = Money(q.value(QStringLiteral("genel_toplam")).toLongLong());
 
         if (!anahtar.isEmpty()) {
             const QString alan = turkishSearchNormalize(
-                s.teklifNo + QLatin1Char(' ') + s.customerUnvan + QLatin1Char(' ')
+                s.teklifNo + QLatin1Char(' ') + s.musteriUnvan + QLatin1Char(' ')
                 + q.value(QStringLiteral("proje_basligi")).toString());
             if (!alan.contains(anahtar))
                 continue;
@@ -412,19 +453,4 @@ bool RepoQuotes::remove(qint64 id, QString *errorOut)
         return false;
     }
     return true;
-}
-
-Money RepoQuotes::customerTotal(qint64 customerId, QString *errorOut) const
-{
-    QSqlQuery q(m_db);
-    q.prepare(QStringLiteral(
-        "SELECT COALESCE(SUM(genel_toplam), 0) FROM quotes WHERE customer_id = :id"));
-    q.bindValue(QStringLiteral(":id"), customerId);
-
-    if (!q.exec() || !q.next()) {
-        if (errorOut)
-            *errorOut = q.lastError().text();
-        return Money(0);
-    }
-    return Money(q.value(0).toLongLong());
 }

@@ -10,7 +10,7 @@ DocumentContext mkContext(int satirSayisi)
 {
     DocumentContext ctx;
     ctx.company.unvan = QStringLiteral("Öz Yapı İnşaat Ltd. Şti.");
-    ctx.customer.unvan = QStringLiteral("Ahmet Yılmaz");
+    ctx.quote.musteri.unvan = QStringLiteral("Ahmet Yılmaz");
     ctx.quote.teklifNo = QStringLiteral("0043");
     ctx.quote.tarih = QDate(2026, 8, 25);
     for (int i = 0; i < satirSayisi; ++i) {
@@ -50,9 +50,8 @@ void TestPrintService::suggestedNameFormat()
     Quote q;
     q.teklifNo = QStringLiteral("0043");
     q.tarih = QDate(2026, 8, 25);
-    Customer c;
-    c.unvan = QStringLiteral("Ahmet Yilmaz");
-    QCOMPARE(PrintService::suggestedFileName(q, c), QStringLiteral("2026-0043_AhmetYilmaz.pdf"));
+    q.musteri.unvan = QStringLiteral("Ahmet Yilmaz");
+    QCOMPARE(PrintService::suggestedFileName(q), QStringLiteral("2026-0043_AhmetYilmaz.pdf"));
 }
 
 void TestPrintService::suggestedNameStripsTurkishChars()
@@ -61,9 +60,8 @@ void TestPrintService::suggestedNameStripsTurkishChars()
     Quote q;
     q.teklifNo = QStringLiteral("000143");
     q.tarih = QDate(2026, 1, 5);
-    Customer c;
-    c.unvan = QStringLiteral("Şükrü Çelik İnşaat / Ltd.");
-    const QString ad = PrintService::suggestedFileName(q, c);
+    q.musteri.unvan = QStringLiteral("Şükrü Çelik İnşaat / Ltd.");
+    const QString ad = PrintService::suggestedFileName(q);
     QCOMPARE(ad, QStringLiteral("2026-000143_SukruCelikInsaatLtd.pdf"));
     QVERIFY(!ad.contains(QLatin1Char('/')));
 }
@@ -73,7 +71,8 @@ void TestPrintService::suggestedNameHandlesEmptyCustomer()
     Quote q;
     q.teklifNo = QStringLiteral("0001");
     q.tarih = QDate(2026, 3, 1);
-    QCOMPARE(PrintService::suggestedFileName(q, Customer{}), QStringLiteral("2026-0001.pdf"));
+    // musteri unvani hic yazilmadi
+    QCOMPARE(PrintService::suggestedFileName(q), QStringLiteral("2026-0001.pdf"));
 }
 
 void TestPrintService::suggestedNameHandlesInvalidDate()
@@ -81,9 +80,8 @@ void TestPrintService::suggestedNameHandlesInvalidDate()
     Quote q;
     q.teklifNo = QStringLiteral("0001");
     // tarih atanmadi -> gecersiz QDate; cokme yerine "0000" kullanilir.
-    Customer c;
-    c.unvan = QStringLiteral("Test");
-    QCOMPARE(PrintService::suggestedFileName(q, c), QStringLiteral("0000-0001_Test.pdf"));
+    q.musteri.unvan = QStringLiteral("Test");
+    QCOMPARE(PrintService::suggestedFileName(q), QStringLiteral("0000-0001_Test.pdf"));
 }
 
 void TestPrintService::exportPdfCreatesFile()

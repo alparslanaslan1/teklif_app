@@ -181,7 +181,12 @@ void PageSettings::setupUi()
     kaydirma->setWidgetResizable(true);
     kaydirma->setWidget(icerik);
 
+    // Sayfa kenar boşlukları. Varsayılan (9 px) kart görünümü için dardı:
+    // QGroupBox başlığı kutunun üst kenarının üzerine oturduğu için üstte
+    // yer kalmıyor ve başlık kırpılıyordu.
     auto *ana = new QVBoxLayout(this);
+    ana->setContentsMargins(18, 20, 18, 16);
+    ana->setSpacing(12);
     ana->addWidget(kaydirma);
 }
 

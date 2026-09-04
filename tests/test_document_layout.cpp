@@ -25,7 +25,7 @@ DocumentContext mkContext(int satirSayisi)
     DocumentContext ctx;
     ctx.company.unvan = QStringLiteral("Öz Yapı İnşaat Ltd. Şti.");
     ctx.company.adres = QStringLiteral("Atatürk Cad. No:1, Ankara");
-    ctx.customer.unvan = QStringLiteral("Ahmet Yılmaz");
+    ctx.quote.musteri.unvan = QStringLiteral("Ahmet Yılmaz");
     ctx.quote.teklifNo = QStringLiteral("000143");
     ctx.quote.tarih = QDate(2026, 8, 25);
     ctx.quote.projeBasligi = QStringLiteral("Ofis Tadilatı");

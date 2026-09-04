@@ -37,11 +37,11 @@ QString dosyaAdiIcinSadelestir(const QString &metin)
 
 } // namespace
 
-QString PrintService::suggestedFileName(const Quote &quote, const Customer &customer)
+QString PrintService::suggestedFileName(const Quote &quote)
 {
     const QString yil = quote.tarih.isValid() ? QString::number(quote.tarih.year())
                                                : QStringLiteral("0000");
-    const QString musteri = dosyaAdiIcinSadelestir(customer.unvan);
+    const QString musteri = dosyaAdiIcinSadelestir(quote.musteri.unvan);
 
     QString ad = QStringLiteral("%1-%2").arg(yil, quote.teklifNo);
     if (!musteri.isEmpty())

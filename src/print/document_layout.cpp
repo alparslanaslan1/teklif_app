@@ -193,8 +193,8 @@ double DocumentLayout::measureHeader(QPainter *p, const QRectF &pageRect) const
 
     // Müşteri bloğu: unvan her zaman, diğerleri doluysa.
     int musteriSatir = 1;
-    for (const QString &s : {m_ctx.customer.yetkili, m_ctx.customer.telefon, m_ctx.customer.adres,
-                              m_ctx.customer.vergiDairesi + m_ctx.customer.vergiNo}) {
+    for (const QString &s : {m_ctx.quote.musteri.yetkili, m_ctx.quote.musteri.telefon, m_ctx.quote.musteri.adres,
+                              m_ctx.quote.musteri.vergiDairesi + m_ctx.quote.musteri.vergiNo}) {
         if (!s.trimmed().isEmpty())
             ++musteriSatir;
     }
@@ -420,17 +420,17 @@ void DocumentLayout::paintHeader(QPainter *p, const QRectF &pageRect, double &y)
 
     p->setFont(boldFont());
     p->drawText(QRectF(pageRect.left(), y, pageRect.width(), satir),
-                 Qt::AlignLeft | Qt::AlignVCenter, m_ctx.customer.unvan);
+                 Qt::AlignLeft | Qt::AlignVCenter, m_ctx.quote.musteri.unvan);
     y += satir;
     p->setFont(baseFont());
 
-    const QString vergi = m_ctx.customer.vergiDairesi.trimmed().isEmpty()
-                               && m_ctx.customer.vergiNo.trimmed().isEmpty()
+    const QString vergi = m_ctx.quote.musteri.vergiDairesi.trimmed().isEmpty()
+                               && m_ctx.quote.musteri.vergiNo.trimmed().isEmpty()
                            ? QString()
-                           : QStringLiteral("%1 / %2").arg(m_ctx.customer.vergiDairesi,
-                                                            m_ctx.customer.vergiNo);
-    for (const QString &s : {m_ctx.customer.yetkili, m_ctx.customer.telefon,
-                              m_ctx.customer.adres, vergi}) {
+                           : QStringLiteral("%1 / %2").arg(m_ctx.quote.musteri.vergiDairesi,
+                                                            m_ctx.quote.musteri.vergiNo);
+    for (const QString &s : {m_ctx.quote.musteri.yetkili, m_ctx.quote.musteri.telefon,
+                              m_ctx.quote.musteri.adres, vergi}) {
         if (s.trimmed().isEmpty())
             continue;
         p->drawText(QRectF(pageRect.left(), y, pageRect.width(), satir),

@@ -35,10 +35,20 @@ struct Category
     QString ad;
 };
 
-// customers tablosunun bellek içi karşılığı.
+// Teklifin muhatabı. AYRI BİR TABLO DEĞİL: bu bilgiler teklif kaydedilirken
+// quotes satırının içine yazılır.
+//
+// NEDEN AYRI MÜŞTERİ KAYDI TUTMUYORUZ: teklif, kaydedildiği anda donan bir
+// belgedir. Müşteri ayrı bir tabloda dursaydı, unvanı ya da adresi sonradan
+// düzeltmek geçmişteki BÜTÜN tekliflerin antetini geriye dönük değiştirirdi —
+// bir yıl önce verilmiş belgenin çıktısı bugün farklı basılırdı. Satırların
+// katalogdan kopyalanmasıyla (bkz. QuoteLine) aynı gerekçe.
+//
+// Müşteriye göre arama, arşiv ekranındaki metin aramasıyla yapılır; unvan
+// tekliflerin kendi içinde yazılı olduğu için ayrı bir müşteri listesi
+// tutulmaz.
 struct Customer
 {
-    qint64 id = 0;
     QString unvan;
     QString yetkili;
     QString telefon;
@@ -46,8 +56,9 @@ struct Customer
     QString adres;
     QString vergiDairesi;
     QString vergiNo;
-    QString notlar;
-    bool aktif = true;
+
+    // Antet için en az bunun dolu olması gerekir; teklif unvansız kaydedilemez.
+    bool isEmpty() const { return unvan.trimmed().isEmpty(); }
 };
 
 // quote_lines tablosunun bellek içi karşılığı.
@@ -78,7 +89,8 @@ struct Quote
     // Sürekli artan, sıfır dolgulu 6 haneli numara (örn. "000143").
     // RepoQuotes::add() tarafından atanır; elle set edilmez.
     QString teklifNo;
-    qint64 customerId = 0;
+    // Teklif kaydedilirken içine YAZILAN müşteri bilgisi (bkz. Customer).
+    Customer musteri;
     QDate tarih;
     int gecerlilikGun = 15;
     QString projeBasligi;
@@ -97,14 +109,13 @@ struct Quote
 // NEDEN AYRI BİR YAPI: liste ekranı yüzlerce teklif gösterir ama hiçbirinin
 // satırlarına ihtiyaç duymaz. Quote'u kullanmak her satır için quote_lines
 // sorgusu açmak (N+1) ya da hiç kullanılmayacak veriyi belleğe almak
-// demekti. customerUnvan tek bir JOIN ile gelir; müşteri adı için satır
-// başına ayrı sorgu atılmaz.
+// demekti. Müşteri unvanı teklifin kendi sütununda durduğu için ayrıca
+// JOIN de gerekmez.
 struct QuoteSummary
 {
     qint64 id = 0;
     QString teklifNo;
-    qint64 customerId = 0;
-    QString customerUnvan;
+    QString musteriUnvan;
     QDate tarih;
     QString durum;
     Money genelToplam;

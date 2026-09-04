@@ -59,6 +59,9 @@ void PageCatalog::setupUi()
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->verticalHeader()->setVisible(false);
+    // Ad sütunu boşluğu doldurur, diğerleri içeriğine göre daralır; aksi
+    // halde "Varsayılan Fiyat" gibi geniş başlıklar kırpılıyordu.
+    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setSectionResizeMode(ItemTableModel::ColAd, QHeaderView::Stretch);
     connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             &PageCatalog::onSelectionChanged);
@@ -143,7 +146,12 @@ void PageCatalog::setupUi()
     bolucu->addWidget(formKutu);
     bolucu->setStretchFactor(0, 1);
 
+    // Sayfa kenar boşlukları. Varsayılan (9 px) kart görünümü için dardı:
+    // QGroupBox başlığı kutunun üst kenarının üzerine oturduğu için üstte
+    // yer kalmıyor ve başlık kırpılıyordu.
     auto *ana = new QVBoxLayout(this);
+    ana->setContentsMargins(18, 20, 18, 16);
+    ana->setSpacing(12);
     ana->addWidget(bolucu);
 
     // Başlangıçta seçim yok; onSelectionChanged henüz çalışmadığı için

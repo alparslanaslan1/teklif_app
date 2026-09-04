@@ -20,7 +20,6 @@
 PageArchive::PageArchive(QSqlDatabase db, QWidget *parent)
     : QWidget(parent)
     , m_repoQuotes(db)
-    , m_repoCustomers(db)
 {
     setupUi();
     refresh();
@@ -29,10 +28,9 @@ PageArchive::PageArchive(QSqlDatabase db, QWidget *parent)
 void PageArchive::setupUi()
 {
     // --- Filtreler ----------------------------------------------------------
-    m_customerCombo = new QComboBox(this);
-    m_customerCombo->setObjectName(QStringLiteral("arsivMusteriCombo"));
-    m_customerCombo->setMinimumWidth(200);
-
+    // Müşteri seçici YOK: müşteri artık ayrı bir kayıt değil, teklifin kendi
+    // alanı. Müşteriye göre listeleme aşağıdaki arama kutusuyla yapılır —
+    // unvanın bir parçasını yazmak yeter.
     m_durumCombo = new QComboBox(this);
     m_durumCombo->setObjectName(QStringLiteral("arsivDurumCombo"));
 
@@ -71,25 +69,22 @@ void PageArchive::setupUi()
 
     // Filtre değişince liste anında tazelenir; ayrı bir "Uygula" düğmesi
     // fazladan bir tıklama olurdu.
-    connect(m_customerCombo, &QComboBox::currentIndexChanged, this, &PageArchive::applyFilter);
     connect(m_durumCombo, &QComboBox::currentIndexChanged, this, &PageArchive::applyFilter);
     connect(m_tarihBas, &QDateEdit::dateChanged, this, &PageArchive::applyFilter);
     connect(m_tarihBit, &QDateEdit::dateChanged, this, &PageArchive::applyFilter);
     connect(m_aramaEdit, &QLineEdit::textChanged, this, &PageArchive::applyFilter);
 
     auto *filtreSatir1 = new QHBoxLayout;
-    filtreSatir1->addWidget(new QLabel(QStringLiteral("Müşteri"), this));
-    filtreSatir1->addWidget(m_customerCombo);
+    filtreSatir1->addWidget(m_aramaEdit, /*stretch=*/1);
     filtreSatir1->addWidget(new QLabel(QStringLiteral("Durum"), this));
     filtreSatir1->addWidget(m_durumCombo);
-    filtreSatir1->addStretch();
 
     auto *filtreSatir2 = new QHBoxLayout;
     filtreSatir2->addWidget(m_tarihCheck);
     filtreSatir2->addWidget(m_tarihBas);
     filtreSatir2->addWidget(new QLabel(QStringLiteral("—"), this));
     filtreSatir2->addWidget(m_tarihBit);
-    filtreSatir2->addWidget(m_aramaEdit, /*stretch=*/1);
+    filtreSatir2->addStretch();
     filtreSatir2->addWidget(temizle);
 
     auto *filtreKutu = new QGroupBox(QStringLiteral("Filtre"), this);
@@ -106,6 +101,10 @@ void PageArchive::setupUi()
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->verticalHeader()->setVisible(false);
+    // Müşteri sütunu boşluğu doldurur, diğerleri içeriğine göre daralır —
+    // sabit genişlikte kalsalardı "Genel Toplam" gibi geniş başlıklar
+    // tablonun sağ kenarından taşıp kırpılıyordu.
+    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setSectionResizeMode(QuoteSummaryModel::ColMusteri,
                                                        QHeaderView::Stretch);
     m_table->setSortingEnabled(false); // sıralama SQL'de (en yeni önce)
@@ -118,6 +117,7 @@ void PageArchive::setupUi()
     // --- Komutlar -----------------------------------------------------------
     m_acButton = new QPushButton(QStringLiteral("Aç"), this);
     m_acButton->setObjectName(QStringLiteral("arsivAcButton"));
+    m_acButton->setProperty("birincil", true);
     connect(m_acButton, &QPushButton::clicked, this, &PageArchive::openSelected);
 
     m_kopyalaButton = new QPushButton(QStringLiteral("Kopyala"), this);
@@ -130,6 +130,8 @@ void PageArchive::setupUi()
 
     m_silButton = new QPushButton(QStringLiteral("Sil"), this);
     m_silButton->setObjectName(QStringLiteral("arsivSilButton"));
+    // Geri alınamaz eylem; tema bu özelliğe bakıp uyarı rengiyle çizer.
+    m_silButton->setProperty("tehlike", true);
     connect(m_silButton, &QPushButton::clicked, this, &PageArchive::deleteSelected);
 
     m_ozetLabel = new QLabel(this);
@@ -143,7 +145,12 @@ void PageArchive::setupUi()
     komutlar->addWidget(m_durumButton);
     komutlar->addWidget(m_silButton);
 
+    // Sayfa kenar boşlukları. Varsayılan (9 px) kart görünümü için dardı:
+    // QGroupBox başlığı kutunun üst kenarının üzerine oturduğu için üstte
+    // yer kalmıyor ve başlık kırpılıyordu.
     auto *ana = new QVBoxLayout(this);
+    ana->setContentsMargins(18, 20, 18, 16);
+    ana->setSpacing(12);
     ana->addWidget(filtreKutu);
     ana->addWidget(m_table, /*stretch=*/1);
     ana->addLayout(komutlar);
@@ -153,30 +160,18 @@ void PageArchive::setupUi()
 
 void PageArchive::refresh()
 {
-    // Müşteri ve durum kutuları yeniden kurulurken currentIndexChanged
-    // tetiklenip applyFilter'ı erkenden çağırmasın diye sinyaller kapatılır;
-    // sonunda zaten bir kez uygulanıyor.
-    const QSignalBlocker b1(m_customerCombo);
+    // Durum kutusu yeniden kurulurken currentIndexChanged tetiklenip
+    // applyFilter'ı erkenden çağırmasın diye sinyal kapatılır; sonunda
+    // zaten bir kez uygulanıyor.
     const QSignalBlocker b2(m_durumCombo);
 
-    const qint64 oncekiMusteri = m_customerCombo->currentData().toLongLong();
     const QString oncekiDurum = m_durumCombo->currentData().toString();
-
-    m_customerCombo->clear();
-    m_customerCombo->addItem(QStringLiteral("Tüm müşteriler"), QVariant(qint64(0)));
-    QString err;
-    // Pasif müşteriler DE listelenir: eski teklifleri arşivde aranabilmeli.
-    for (const Customer &c : m_repoCustomers.listAll(/*includeInactive=*/true, &err))
-        m_customerCombo->addItem(c.unvan, QVariant(c.id));
 
     m_durumCombo->clear();
     m_durumCombo->addItem(QStringLiteral("Tüm durumlar"), QString());
     for (const QString &d : QuoteStatus::all())
         m_durumCombo->addItem(d, d);
 
-    const int mIdx = m_customerCombo->findData(QVariant(oncekiMusteri));
-    if (mIdx >= 0)
-        m_customerCombo->setCurrentIndex(mIdx);
     const int dIdx = m_durumCombo->findData(oncekiDurum);
     if (dIdx >= 0)
         m_durumCombo->setCurrentIndex(dIdx);
@@ -187,7 +182,6 @@ void PageArchive::refresh()
 QuoteFilter PageArchive::currentFilter() const
 {
     QuoteFilter f;
-    f.customerId = m_customerCombo->currentData().toLongLong();
     f.durum = m_durumCombo->currentData().toString();
     f.aranan = m_aramaEdit->text();
     if (m_tarihCheck->isChecked()) {
@@ -222,12 +216,10 @@ void PageArchive::applyFilter()
 
 void PageArchive::clearFilter()
 {
-    const QSignalBlocker b1(m_customerCombo);
     const QSignalBlocker b2(m_durumCombo);
     const QSignalBlocker b3(m_aramaEdit);
     const QSignalBlocker b4(m_tarihCheck);
 
-    m_customerCombo->setCurrentIndex(0);
     m_durumCombo->setCurrentIndex(0);
     m_aramaEdit->clear();
     m_tarihCheck->setChecked(false);
@@ -296,7 +288,7 @@ void PageArchive::deleteSelected()
         QStringLiteral("%1 numaralı teklif kalıcı olarak silinecek.\n\n"
                         "Müşteri: %2\nTarih: %3\nTutar: %4\n\n"
                         "Bu işlem geri alınamaz. Devam edilsin mi?")
-            .arg(mevcut.teklifNo, mevcut.customerUnvan,
+            .arg(mevcut.teklifNo, mevcut.musteriUnvan,
                   mevcut.tarih.toString(QStringLiteral("dd.MM.yyyy")),
                   mevcut.genelToplam.toString());
 

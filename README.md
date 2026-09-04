@@ -21,6 +21,21 @@ ctest --preset release
 Qt Creator ve VS Code `CMakePresets.json` dosyasını doğrudan okur; ayrıca
 yapılandırma gerekmez.
 
+## Ekranlar
+
+| Ekran | Ne yapar |
+|---|---|
+| **Teklif** | Müşteri bilgisi + kalemler + toplam. Kalemler ya katalogdan aranarak ya da `+` ile boş satır açılıp elle yazılarak girilir. |
+| **Arşiv** | Kayıtlı teklifler. Arama kutusuna müşteri adının bir parçasını yazmak o müşterinin tekliflerini getirir. |
+| **Katalog** | Sık kullanılan malzeme/hizmetler ve varsayılan fiyatları. CSV ile içe/dışa aktarılır. |
+| **Ayarlar** | Firma bilgileri, logo, şartlar metni, yazı boyutu, yedekleme. |
+
+**Ayrı bir müşteri kaydı yoktur.** Müşteri bilgisi teklif kaydedilirken teklifin
+içine yazılır. Sebebi: teklif kaydedildiği anda donan bir belgedir; müşteri
+ortak bir tabloda dursaydı unvanını ya da adresini bugün düzeltmek geçmişteki
+bütün tekliflerin antetini geriye dönük değiştirirdi. Satırların katalogdan
+kopyalanmasıyla aynı gerekçe.
+
 ## Proje yapısı
 
 Başlıklar (`.h`) tek bir ağaçta, gerçekleştirim (`.cpp`) dosyalarından ayrı
@@ -108,7 +123,7 @@ Kurulumun iki bilinçli özelliği var:
   dosyaları değiştirir, kullanıcı verisine dokunmaz.
 
 Kaldırma işlemi `%APPDATA%` altındaki veritabanını **silmez**: program
-kaldırılıp yeniden kurulsa da teklifler, müşteriler ve ayarlar yerinde kalır.
+kaldırılıp yeniden kurulsa da teklifler, katalog ve ayarlar yerinde kalır.
 
 ## İlk çalıştırma
 

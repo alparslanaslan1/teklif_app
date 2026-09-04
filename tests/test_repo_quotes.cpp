@@ -4,7 +4,6 @@
 #include <QSqlQuery>
 
 #include "teklif/core/db.h"
-#include "teklif/core/repo_customers.h"
 #include "teklif/core/repo_items.h"
 #include "teklif/core/repo_quotes.h"
 
@@ -54,19 +53,17 @@ void TestRepoQuotes::addAssignsSequentialNumbers()
 
     {
         QSqlDatabase db = QSqlDatabase::database(conn);
-        Customer c;
-        c.unvan = QStringLiteral("Test Müşteri");
+        const QString musteriUnvani = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q1;
-        q1.customerId = c.id;
+        q1.musteri.unvan = musteriUnvani;
         q1.tarih = QDate(2026, 8, 25);
         QVERIFY2(RepoQuotes(db).add(q1, &e), qPrintable(e));
         QCOMPARE(q1.teklifNo, QStringLiteral("000001"));
 
         Quote q2;
-        q2.customerId = c.id;
+        q2.musteri.unvan = musteriUnvani;
         q2.tarih = QDate(2026, 8, 25);
         QVERIFY2(RepoQuotes(db).add(q2, &e), qPrintable(e));
         QCOMPARE(q2.teklifNo, QStringLiteral("000002"));
@@ -84,13 +81,11 @@ void TestRepoQuotes::addPersistsLinesAndTotals()
 
     {
         QSqlDatabase db = QSqlDatabase::database(conn);
-        Customer c;
-        c.unvan = QStringLiteral("Test Müşteri");
+        const QString musteriUnvani = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q;
-        q.customerId = c.id;
+        q.musteri.unvan = musteriUnvani;
         q.tarih = QDate(2026, 8, 25);
         q.kdvOraniYuzde = 20;
         q.araToplam = Money::fromString(QStringLiteral("10.205,00")).value();
@@ -106,7 +101,7 @@ void TestRepoQuotes::addPersistsLinesAndTotals()
         const auto okundu = RepoQuotes(db).get(q.id, &e);
         QVERIFY2(okundu.has_value(), qPrintable(e));
         QCOMPARE(okundu->teklifNo, q.teklifNo);
-        QCOMPARE(okundu->customerId, c.id);
+        QCOMPARE(okundu->musteri.unvan, musteriUnvani);
         QCOMPARE(okundu->kdvOraniYuzde, 20);
         QCOMPARE(okundu->araToplam.toString(), QStringLiteral("10.205,00"));
         QCOMPARE(okundu->kdvTutari.toString(), QStringLiteral("2.041,00"));
@@ -133,13 +128,11 @@ void TestRepoQuotes::updateReplacesLines()
 
     {
         QSqlDatabase db = QSqlDatabase::database(conn);
-        Customer c;
-        c.unvan = QStringLiteral("Test Müşteri");
+        const QString musteriUnvani = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q;
-        q.customerId = c.id;
+        q.musteri.unvan = musteriUnvani;
         q.tarih = QDate(2026, 8, 25);
         q.satirlar = {mkLine(1, QStringLiteral("Eski Satır"), QStringLiteral("adet"), 1, 1000)};
         QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
@@ -178,12 +171,8 @@ void TestRepoQuotes::priceIsCopiedNotReferenced()
         QString e;
         QVERIFY2(RepoItems(db).add(it, &e), qPrintable(e));
 
-        Customer c;
-        c.unvan = QStringLiteral("Test Müşteri");
-        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
-
         Quote q;
-        q.customerId = c.id;
+        q.musteri.unvan = QStringLiteral("Test Müşteri");
         q.tarih = QDate(2026, 8, 25);
         q.satirlar = {mkLine(1, it.ad, it.birim, 10, it.varsayilanFiyat.kurus())};
         QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
@@ -210,18 +199,16 @@ void TestRepoQuotes::sequenceSurvivesAcrossYearBoundary()
 
     {
         QSqlDatabase db = QSqlDatabase::database(conn);
-        Customer c;
-        c.unvan = QStringLiteral("Test Müşteri");
+        const QString musteriUnvani = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q1;
-        q1.customerId = c.id;
+        q1.musteri.unvan = musteriUnvani;
         q1.tarih = QDate(2026, 12, 31);
         QVERIFY2(RepoQuotes(db).add(q1, &e), qPrintable(e));
 
         Quote q2;
-        q2.customerId = c.id;
+        q2.musteri.unvan = musteriUnvani;
         q2.tarih = QDate(2027, 1, 1); // yıl değişti
         QVERIFY2(RepoQuotes(db).add(q2, &e), qPrintable(e));
 
@@ -246,13 +233,11 @@ void TestRepoQuotes::sequenceWraps7Digits()
         QVERIFY(seed.exec(QStringLiteral(
             "INSERT INTO settings (key, value) VALUES ('teklif_no_sayac', '999999')")));
 
-        Customer c;
-        c.unvan = QStringLiteral("Test Müşteri");
+        const QString musteriUnvani = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         Quote q;
-        q.customerId = c.id;
+        q.musteri.unvan = musteriUnvani;
         q.tarih = QDate(2026, 8, 25);
         QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
 
@@ -271,15 +256,13 @@ void TestRepoQuotes::rapidSequentialAddsNeverDuplicate()
 
     {
         QSqlDatabase db = QSqlDatabase::database(conn);
-        Customer c;
-        c.unvan = QStringLiteral("Test Müşteri");
+        const QString musteriUnvani = QStringLiteral("Test Müşteri");
         QString e;
-        QVERIFY2(RepoCustomers(db).add(c, &e), qPrintable(e));
 
         QSet<QString> numaralar;
         for (int i = 0; i < 20; ++i) {
             Quote q;
-            q.customerId = c.id;
+            q.musteri.unvan = musteriUnvani;
             q.tarih = QDate(2026, 8, 25);
             QVERIFY2(RepoQuotes(db).add(q, &e), qPrintable(e));
             QVERIFY2(!numaralar.contains(q.teklifNo),

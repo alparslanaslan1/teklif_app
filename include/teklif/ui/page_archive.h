@@ -1,6 +1,5 @@
 #pragma once
 
-#include "teklif/core/repo_customers.h"
 #include "teklif/core/repo_quotes.h"
 
 #include <QSqlDatabase>
@@ -28,9 +27,8 @@ class PageArchive : public QWidget
 public:
     explicit PageArchive(QSqlDatabase db, QWidget *parent = nullptr);
 
-    // Filtre kutularını (müşteri listesi) ve tabloyu tazeler. Ekrana her
-    // geçildiğinde çağrılır: başka bir ekranda kaydedilen teklif burada
-    // görünmelidir.
+    // Durum kutusunu ve tabloyu tazeler. Ekrana her geçildiğinde çağrılır:
+    // başka bir ekranda kaydedilen teklif burada görünmelidir.
     void refresh();
 
     // Testler için: tabloya ve o an seçili teklife doğrudan erişim.
@@ -56,9 +54,7 @@ private slots:
 
 private:
     RepoQuotes m_repoQuotes;
-    RepoCustomers m_repoCustomers;
 
-    QComboBox *m_customerCombo;
     QComboBox *m_durumCombo;
     QCheckBox *m_tarihCheck;
     QDateEdit *m_tarihBas;

@@ -28,5 +28,5 @@ public:
     // Dosya sisteminde sorun çıkaran karakterler (/ \ : * ? " < > |) ve
     // Türkçe harfler ASCII karşılıklarına indirilir — Türkçe olmayan bir
     // sistemde ya da e-postayla gönderildiğinde ad bozulmasın diye.
-    static QString suggestedFileName(const Quote &quote, const Customer &customer);
+    static QString suggestedFileName(const Quote &quote);
 };

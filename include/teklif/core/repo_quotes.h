@@ -12,11 +12,13 @@
 // "bu ölçüte bakma" anlamına gelir, ayrı bir "etkin mi" bayrağı gerekmez.
 struct QuoteFilter
 {
-    qint64 customerId = 0;   // 0 = tüm müşteriler
     QDate tarihBaslangic;    // geçersiz = alt sınır yok
     QDate tarihBitis;        // geçersiz = üst sınır yok. Sınır tarihleri DAHİLDİR.
     QString durum;           // boş = tüm durumlar
-    QString aranan;          // teklif no, müşteri unvanı ve proje başlığında arar
+    // Teklif no, müşteri unvanı ve proje başlığında birden arar. Müşteriye
+    // göre listeleme bununla yapılır — ayrı bir müşteri seçici yoktur, çünkü
+    // müşteri artık ayrı bir kayıt değil, teklifin kendi alanıdır.
+    QString aranan;
 };
 
 // quotes + quote_lines tablolarının deposu.
@@ -69,9 +71,6 @@ public:
     //
     // id bulunamazsa hata döner (sessizce "başarılı" saymaz).
     bool remove(qint64 id, QString *errorOut = nullptr);
-
-    // Müşterinin tüm tekliflerinin genel toplamı — müşteri kartında gösterilir.
-    Money customerTotal(qint64 customerId, QString *errorOut = nullptr) const;
 
 private:
     QSqlDatabase m_db;

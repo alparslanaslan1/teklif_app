@@ -80,7 +80,7 @@ Filename: "{app}\{#AppExeName}"; Description: "{#AppName} programını başlat";
 [UninstallDelete]
 ; KULLANICI VERİSİ SİLİNMEZ. Veritabanı %APPDATA%\KarasuVizyon\Teklif\teklif.db
 ; altındadır ve buraya HİÇ dokunulmaz — program kaldırılıp yeniden kurulsa
-; da teklifler, müşteriler ve ayarlar yerinde kalır. Yalnızca kurulum
+; da teklifler, katalog ve ayarlar yerinde kalır. Yalnızca kurulum
 ; klasöründe kalan artıklar temizlenir.
 Type: filesandordirs; Name: "{app}\platforms"
 Type: filesandordirs; Name: "{app}\sqldrivers"

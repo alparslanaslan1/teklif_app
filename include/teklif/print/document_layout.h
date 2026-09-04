@@ -27,7 +27,9 @@ class QPainter;
 struct DocumentContext
 {
     Quote quote;
-    Customer customer;
+    // Müşteri bilgisi AYRI TUTULMAZ, quote.musteri'den okunur — belgede
+    // görünen muhatabın kaydedilen teklifinkinden farklı olması mümkün olmasın
+    // diye tek kaynak vardır.
     CompanyInfo company;
     // Boş bırakılabilir; o zaman antet logosuz düzene geçer.
     // Ayarlardan okumak için bkz. print/company_logo.h.

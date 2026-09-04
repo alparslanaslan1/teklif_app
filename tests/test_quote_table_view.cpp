@@ -38,15 +38,12 @@ void TestQuoteTableView::tabSkipsReadOnlyColumnsWithinRow()
 
     QuoteTableView view;
     view.setModel(&model);
-    view.setCurrentIndex(model.index(0, QuoteLineModel::ColAciklama));
+    view.setCurrentIndex(model.index(0, QuoteLineModel::ColBirimFiyat));
 
     QTest::keyClick(&view, Qt::Key_Tab);
-    // ColBirim (salt okunur) atlanır, doğrudan ColMiktar'a geçer.
+    // ColTutar HESAPLANIR, elle yazılamaz; atlanıp ColNot'a geçilir.
     QCOMPARE(view.currentIndex().row(), 0);
-    QCOMPARE(view.currentIndex().column(), int(QuoteLineModel::ColMiktar));
-
-    QTest::keyClick(&view, Qt::Key_Tab);
-    QCOMPARE(view.currentIndex().column(), int(QuoteLineModel::ColBirimFiyat));
+    QCOMPARE(view.currentIndex().column(), int(QuoteLineModel::ColNot));
 }
 
 void TestQuoteTableView::tabWrapsToNextRowFirstEditableColumn()
@@ -57,11 +54,11 @@ void TestQuoteTableView::tabWrapsToNextRowFirstEditableColumn()
 
     QuoteTableView view;
     view.setModel(&model);
-    view.setCurrentIndex(model.index(0, QuoteLineModel::ColBirimFiyat));
+    view.setCurrentIndex(model.index(0, QuoteLineModel::ColNot));
 
     QTest::keyClick(&view, Qt::Key_Tab);
-    // Satır 0'ın son düzenlenebilir sütunundan sonra: ColTutar (salt okunur)
-    // atlanır, satır 1'in ilk düzenlenebilirine (Açıklama) geçilir.
+    // Satır 0'ın SON düzenlenebilir sütunundan sonra satır 1'in ilkine
+    // (Açıklama) geçilir; ColSira hesaplanır, atlanır.
     QCOMPARE(view.currentIndex().row(), 1);
     QCOMPARE(view.currentIndex().column(), int(QuoteLineModel::ColAciklama));
 }
@@ -73,10 +70,11 @@ void TestQuoteTableView::shiftTabSkipsBackward()
 
     QuoteTableView view;
     view.setModel(&model);
-    view.setCurrentIndex(model.index(0, QuoteLineModel::ColBirimFiyat));
+    view.setCurrentIndex(model.index(0, QuoteLineModel::ColNot));
 
     QTest::keyClick(&view, Qt::Key_Backtab); // Shift+Tab
-    QCOMPARE(view.currentIndex().column(), int(QuoteLineModel::ColMiktar));
+    // Geriye giderken de ColTutar atlanır.
+    QCOMPARE(view.currentIndex().column(), int(QuoteLineModel::ColBirimFiyat));
 }
 
 void TestQuoteTableView::tabAtLastCellLeavesTable()
@@ -101,14 +99,14 @@ void TestQuoteTableView::tabAtLastCellLeavesTable()
 
     // Tek satirin SON duzenlenebilir hucresi.
     view->setFocus();
-    view->setCurrentIndex(model.index(0, QuoteLineModel::ColBirimFiyat));
+    view->setCurrentIndex(model.index(0, QuoteLineModel::ColNot));
     QVERIFY(view->hasFocus());
 
     QTest::keyClick(view, Qt::Key_Tab);
 
     // Imlec sarmamali ve odak tabloyu terk etmeli.
     QCOMPARE(view->currentIndex().row(), 0);
-    QCOMPARE(view->currentIndex().column(), int(QuoteLineModel::ColBirimFiyat));
+    QCOMPARE(view->currentIndex().column(), int(QuoteLineModel::ColNot));
     QVERIFY2(!view->hasFocus(), "odak hala tabloda - Tab ile cikilamiyor");
 }
 

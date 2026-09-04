@@ -11,7 +11,6 @@
 #include <QTemporaryDir>
 
 #include "teklif/core/db.h"
-#include "teklif/core/repo_customers.h"
 #include "teklif/core/repo_quotes.h"
 #include "teklif/core/settings.h"
 #include "teklif/print/company_logo.h"
@@ -22,6 +21,19 @@
 #include "teklif/ui/theme.h"
 
 // Part 7: ayarlar ekrani, arayuz olcegi, belge yazi boyutu, yedekleme.
+
+namespace {
+
+// Yalnizca unvani dolu bir musteri. Testlerin cogunda tek zorunlu alan
+// budur; digerleri bos birakilabilir.
+Customer musteriOlarak(const QString &unvan)
+{
+    Customer m;
+    m.unvan = unvan;
+    return m;
+}
+
+} // namespace
 
 class TestPageSettings : public QObject
 {
@@ -107,12 +119,10 @@ void TestPageSettings::totalHasNoVatBreakdown()
     // teklifte KDV orani 0 olmali ve genel toplam ara toplama esit cikmali.
     MainWindow w(m_db);
 
-    Customer c;
-    c.unvan = QStringLiteral("Musteri");
+    const QString musteriUnvani = QStringLiteral("Musteri");
     QString err;
-    QVERIFY(RepoCustomers(m_db).add(c, &err));
-    w.quotePage()->reloadCustomers();
-    w.quotePage()->selectCustomerById(c.id);
+
+    w.quotePage()->setCustomer(musteriOlarak(musteriUnvani));
 
     Item it;
     it.kod = QStringLiteral("K-1"); it.ad = QStringLiteral("Kalem");
@@ -137,13 +147,11 @@ void TestPageSettings::quoteNoDigitsAffectNumbering()
     Settings s(m_db);
     QVERIFY(s.setInt(Settings::keyQuoteNoDigits(), 4));
 
-    Customer c;
-    c.unvan = QStringLiteral("Musteri");
+    const QString musteriUnvani = QStringLiteral("Musteri");
     QString err;
-    QVERIFY(RepoCustomers(m_db).add(c, &err));
 
     Quote q;
-    q.customerId = c.id;
+    q.musteri.unvan = musteriUnvani;
     q.tarih = QDate(2026, 8, 25);
     QVERIFY2(RepoQuotes(m_db).add(q, &err), qPrintable(err));
     QCOMPARE(q.teklifNo, QStringLiteral("0001"));
@@ -152,7 +160,7 @@ void TestPageSettings::quoteNoDigitsAffectNumbering()
     // saklaniyor), yalnizca sonrakileri etkiler.
     QVERIFY(s.setInt(Settings::keyQuoteNoDigits(), 8));
     Quote q2;
-    q2.customerId = c.id;
+    q2.musteri.unvan = musteriUnvani;
     q2.tarih = QDate(2026, 8, 25);
     QVERIFY2(RepoQuotes(m_db).add(q2, &err), qPrintable(err));
     QCOMPARE(q2.teklifNo, QStringLiteral("00000002"));
@@ -163,20 +171,18 @@ void TestPageSettings::quoteNoDigitsAreClamped()
 {
     // Elle bozulmus bir ayar numara uretimini cokertmemeli.
     Settings s(m_db);
-    Customer c;
-    c.unvan = QStringLiteral("Musteri");
+    const QString musteriUnvani = QStringLiteral("Musteri");
     QString err;
-    QVERIFY(RepoCustomers(m_db).add(c, &err));
 
     QVERIFY(s.setValue(Settings::keyQuoteNoDigits(), QStringLiteral("abc")));
     Quote q;
-    q.customerId = c.id; q.tarih = QDate(2026, 8, 25);
+    q.musteri.unvan = musteriUnvani; q.tarih = QDate(2026, 8, 25);
     QVERIFY2(RepoQuotes(m_db).add(q, &err), qPrintable(err));
     QCOMPARE(q.teklifNo.size(), RepoQuotes::kDefaultQuoteNoDigits);
 
     QVERIFY(s.setInt(Settings::keyQuoteNoDigits(), 99)); // aralik disi
     Quote q2;
-    q2.customerId = c.id; q2.tarih = QDate(2026, 8, 25);
+    q2.musteri.unvan = musteriUnvani; q2.tarih = QDate(2026, 8, 25);
     QVERIFY2(RepoQuotes(m_db).add(q2, &err), qPrintable(err));
     QCOMPARE(q2.teklifNo.size(), RepoQuotes::kMaxQuoteNoDigits);
 }
@@ -191,11 +197,9 @@ void TestPageSettings::termsTextIsFrozenIntoQuote()
     QString err;
     QVERIFY2(w.settingsPage()->save(&err), qPrintable(err));
 
-    Customer c;
-    c.unvan = QStringLiteral("Musteri");
-    QVERIFY(RepoCustomers(m_db).add(c, &err));
-    w.quotePage()->reloadCustomers();
-    w.quotePage()->selectCustomerById(c.id);
+    const QString musteriUnvani = QStringLiteral("Musteri");
+
+    w.quotePage()->setCustomer(musteriOlarak(musteriUnvani));
 
     Item it;
     it.kod = QStringLiteral("K-1"); it.ad = QStringLiteral("Kalem");
@@ -285,12 +289,15 @@ void TestPageSettings::logoPreviewReflectsState()
 
 void TestPageSettings::backupProducesUsableDatabase()
 {
-    // Yedek al -> veri sil -> yedegi ac: her sey donmeli.
-    Customer c;
-    c.unvan = QStringLiteral("Şükrü Çelik");
+    // Yedek al -> yedegi ayri baglantiyla ac: hem ayarlar hem teklifler
+    // (musteri bilgisiyle birlikte) donmeli.
     QString err;
-    QVERIFY(RepoCustomers(m_db).add(c, &err));
     Settings(m_db).setValue(Settings::keyCompanyName(), QStringLiteral("Test Firma"));
+
+    Quote teklif;
+    teklif.musteri.unvan = QStringLiteral("Şükrü Çelik");
+    teklif.tarih = QDate(2026, 8, 25);
+    QVERIFY2(RepoQuotes(m_db).add(teklif, &err), qPrintable(err));
 
     const QString yedek = m_dir->filePath(QStringLiteral("yedek.db"));
     QSqlQuery q(m_db);
@@ -304,8 +311,9 @@ void TestPageSettings::backupProducesUsableDatabase()
     QVERIFY2(Db::openAndMigrate(yedek, &err, conn2), qPrintable(err));
     {
         QSqlDatabase db2 = QSqlDatabase::database(conn2);
-        QCOMPARE(RepoCustomers(db2).listAll().size(), 1);
-        QCOMPARE(RepoCustomers(db2).listAll().first().unvan, QStringLiteral("Şükrü Çelik"));
+        const auto liste = RepoQuotes(db2).list(QuoteFilter{});
+        QCOMPARE(liste.size(), 1);
+        QCOMPARE(liste.first().musteriUnvan, QStringLiteral("Şükrü Çelik"));
         QCOMPARE(Settings(db2).valueOr(Settings::keyCompanyName()), QStringLiteral("Test Firma"));
     }
     QSqlDatabase::database(conn2).close();

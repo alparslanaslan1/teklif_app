@@ -10,7 +10,6 @@ class QListWidget;
 class QStackedWidget;
 class PageQuote;
 class PageArchive;
-class PageCustomers;
 class PageCatalog;
 class PageSettings;
 class UpdatePrompt;
@@ -36,13 +35,11 @@ public:
     // Testler için sayfalara doğrudan erişim.
     PageQuote *quotePage() const { return m_pageQuote; }
     PageArchive *archivePage() const { return m_pageArchive; }
-    PageCustomers *customersPage() const { return m_pageCustomers; }
     PageCatalog *catalogPage() const { return m_pageCatalog; }
     PageSettings *settingsPage() const { return m_pageSettings; }
 
     // Sayfa sırası; sol listedeki satırlarla birebir aynı.
-    enum Page { PageQuoteIndex = 0, PageArchiveIndex, PageCatalogIndex, PageCustomersIndex,
-                PageSettingsIndex };
+    enum Page { PageQuoteIndex = 0, PageArchiveIndex, PageCatalogIndex, PageSettingsIndex };
     void showPage(Page page);
 
     // İlk çalıştırma sihirbazı ayarları ve katalogu değiştirmiş olabilir;
@@ -55,7 +52,7 @@ public:
     void setupUpdates(const QUrl &manifestUrl, const QString &currentVersion);
 
 private slots:
-    // Arşivden ya da müşteri kartından gelen "bu teklifi aç" isteği.
+    // Arşivden gelen "bu teklifi aç" isteği.
     void openQuote(qint64 quoteId);
 
 private:
@@ -64,7 +61,6 @@ private:
 
     PageQuote *m_pageQuote;
     PageArchive *m_pageArchive;
-    PageCustomers *m_pageCustomers;
     PageCatalog *m_pageCatalog;
     PageSettings *m_pageSettings;
     UpdatePrompt *m_updatePrompt = nullptr;

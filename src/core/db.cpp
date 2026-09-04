@@ -229,17 +229,94 @@ bool Db::createV1Schema(QSqlDatabase &db, QString *errorOut)
 }
 
 
+// Müşteri bilgisini ayrı bir tablodan teklifin İÇİNE taşır (v1 -> v2).
+//
+// NEDEN TABLO YENİDEN KURULUYOR: quotes.customer_id üzerinde customers'a
+// bir yabancı anahtar var ve SQLite bir sütunun kısıtını ALTER TABLE ile
+// kaldıramaz. Tek doğru yol, hedef şemayla yeni bir tablo kurup veriyi
+// taşımaktır — SQLite belgelerinin de önerdiği yöntem budur.
+//
+// Veri kaybı yok: her teklif, o an bağlı olduğu müşterinin unvanını,
+// adresini ve vergi bilgisini kendi satırına KOPYALAR. LEFT JOIN kullanılır,
+// çünkü müşterisi bir şekilde kaybolmuş bir teklif de taşınmalıdır (unvanı
+// boş kalır, teklif kaybolmaz).
+//
+// customers tablosu en sonda düşürülür; artık hiçbir yerden okunmuyor.
+bool Db::migrateV1ToV2(QSqlDatabase &db, QString *errorOut)
+{
+    static const QStringList statements = {
+        QStringLiteral(R"(
+            CREATE TABLE quotes_v2 (
+                id                     INTEGER PRIMARY KEY,
+                teklif_no              TEXT NOT NULL UNIQUE,
+                musteri_unvan          TEXT NOT NULL DEFAULT '',
+                musteri_yetkili        TEXT,
+                musteri_telefon        TEXT,
+                musteri_email          TEXT,
+                musteri_adres          TEXT,
+                musteri_vergi_dairesi  TEXT,
+                musteri_vergi_no       TEXT,
+                tarih                  TEXT NOT NULL,
+                gecerlilik_gun         INTEGER NOT NULL DEFAULT 15,
+                proje_basligi          TEXT,
+                proje_notu             TEXT,
+                durum                  TEXT NOT NULL DEFAULT 'Taslak',
+                sartlar_metni          TEXT,
+                ara_toplam             INTEGER NOT NULL DEFAULT 0,
+                kdv_orani              INTEGER NOT NULL DEFAULT 0,
+                kdv_tutari             INTEGER NOT NULL DEFAULT 0,
+                genel_toplam           INTEGER NOT NULL DEFAULT 0,
+                olusturma              TEXT NOT NULL DEFAULT (datetime('now')),
+                guncelleme             TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        )"),
+        QStringLiteral(R"(
+            INSERT INTO quotes_v2 (id, teklif_no, musteri_unvan, musteri_yetkili,
+                                   musteri_telefon, musteri_email, musteri_adres,
+                                   musteri_vergi_dairesi, musteri_vergi_no,
+                                   tarih, gecerlilik_gun, proje_basligi, proje_notu,
+                                   durum, sartlar_metni, ara_toplam, kdv_orani,
+                                   kdv_tutari, genel_toplam, olusturma, guncelleme)
+            SELECT q.id, q.teklif_no,
+                   COALESCE(c.unvan, ''), c.yetkili, c.telefon, c.email, c.adres,
+                   c.vergi_dairesi, c.vergi_no,
+                   q.tarih, q.gecerlilik_gun, q.proje_basligi, q.proje_notu,
+                   q.durum, q.sartlar_metni, q.ara_toplam, q.kdv_orani,
+                   q.kdv_tutari, q.genel_toplam, q.olusturma, q.guncelleme
+            FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id
+        )"),
+        // quote_lines.quote_id -> quotes(id) yabancı anahtarı, tablo
+        // yeniden adlandırıldığında SQLite tarafından yeni tabloyu
+        // gösterecek şekilde taşınır (legacy_alter_table kapalıyken
+        // varsayılan davranış budur), satırlar tekliflerine bağlı kalır.
+        QStringLiteral("DROP TABLE quotes"),
+        QStringLiteral("ALTER TABLE quotes_v2 RENAME TO quotes"),
+        QStringLiteral("DROP TABLE customers"),
+        // Artık müşteriye göre değil, unvan metnine göre aranıyor.
+        QStringLiteral("CREATE INDEX idx_quotes_musteri ON quotes(musteri_unvan)"),
+    };
+
+    QSqlQuery q(db);
+    for (const QString &sql : statements) {
+        if (!execOrFail(q, sql, errorOut))
+            return false;
+    }
+    return true;
+}
+
+
 // Tek bir sürüm sıçramasını uygular.
 //   fromVersion : dosyanın MEVCUT sürümü. Başarılı olursa dosya
 //                 fromVersion + 1 sürümüne geçmiş olur.
-// Şu an yalnızca case 0 vardır (boş/v0 dosya -> v1).
 bool Db::migrateStep(QSqlDatabase &db, int fromVersion, QString *errorOut)
 {
     switch (fromVersion) {
     case 0:
         return createV1Schema(db, errorOut);
-    // v1 -> v2 gerektiğinde buraya yeni bir "case 1:" eklenecek.
-    // Yukarıdaki case 0 SİLİNMEYECEK: kullanıcıda hâlâ v0 dosya olabilir.
+    case 1:
+        return migrateV1ToV2(db, errorOut);
+    // Eski case'ler SİLİNMEZ: kullanıcıda hâlâ v0 ya da v1 dosya olabilir ve
+    // göç zinciri sürümü birer birer yükselterek ilerler.
     default:
         if (errorOut)
             *errorOut = QStringLiteral("Bilinmeyen şema sürümü: %1").arg(fromVersion);
@@ -311,6 +388,28 @@ bool Db::openAndMigrate(const QString &path, QString *errorOut, const QString &c
     QSqlDatabase db = QSqlDatabase::database(connectionName);
     int version = currentVersion(db);
 
+    // ---------------------------------------------------------------------
+    // GÖÇ BOYUNCA YABANCI ANAHTARLAR KAPALI.
+    //
+    // Neden: SQLite'ta bir tablonun şemasını değiştirmenin tek yolu "yeni
+    // tablo kur, veriyi taşı, eskisini düşür, yenisini yeniden adlandır"
+    // adımlarıdır. Ama DROP TABLE, yabancı anahtarlar AÇIKKEN örtük bir
+    // DELETE FROM çalıştırır ve çocuk tablolardaki ON DELETE CASCADE'i
+    // tetikler — yani "quotes" tablosunu düşürmek, quote_lines'daki BÜTÜN
+    // teklif satırlarını da silerdi. Bu, veriyi sessizce yok eden ve ancak
+    // eski bir teklif açıldığında fark edilecek bir hatadır (v1 -> v2
+    // göçünün testinde tam olarak böyle yakalandı).
+    //
+    // Pragma transaction'ın DIŞINDA verilmelidir; içeride etkisizdir.
+    // Göç bittikten sonra tekrar açılır ve foreign_key_check ile hiçbir
+    // bağın kopmadığı doğrulanır.
+    // ---------------------------------------------------------------------
+    if (version < kSchemaVersion) {
+        QSqlQuery fk(db);
+        if (!execOrFail(fk, QStringLiteral("PRAGMA foreign_keys = OFF"), errorOut))
+            return false;
+    }
+
     while (version < kSchemaVersion) {
         QSqlQuery tx(db);
         tx.exec(QStringLiteral("BEGIN IMMEDIATE"));
@@ -336,6 +435,26 @@ bool Db::openAndMigrate(const QString &path, QString *errorOut, const QString &c
             return false;
 
         version = nextVersion;
+    }
+
+    // Göç bitti: yabancı anahtarları geri aç ve hiçbir bağın kopmadığını
+    // doğrula. foreign_key_check satır DÖNERSE bozuk bir referans var
+    // demektir; bu noktada durmak, bozuk veriyle çalışmaya devam etmekten
+    // iyidir — kullanıcının göç öncesi .bak yedeği zaten duruyor.
+    {
+        QSqlQuery fk(db);
+        if (!execOrFail(fk, QStringLiteral("PRAGMA foreign_keys = ON"), errorOut))
+            return false;
+
+        QSqlQuery kontrol(db);
+        if (kontrol.exec(QStringLiteral("PRAGMA foreign_key_check")) && kontrol.next()) {
+            if (errorOut)
+                *errorOut = QStringLiteral("Şema göçünden sonra bozuk yabancı anahtar bulundu "
+                                            "(tablo: %1). Göç öncesi yedek .bak uzantısıyla "
+                                            "duruyor.")
+                                .arg(kontrol.value(0).toString());
+            return false;
+        }
     }
 
     return true;

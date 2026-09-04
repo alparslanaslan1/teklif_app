@@ -7,13 +7,11 @@
 # ---------------------------------------------------------------------------
 set(TEKLIF_UI_HEADERS
     "${TEKLIF_INCLUDE_DIR}/ui/dlg_first_run.h"
-    "${TEKLIF_INCLUDE_DIR}/ui/dlg_line_entry.h"
     "${TEKLIF_INCLUDE_DIR}/ui/item_search.h"
     "${TEKLIF_INCLUDE_DIR}/ui/item_table_model.h"
     "${TEKLIF_INCLUDE_DIR}/ui/mainwindow.h"
     "${TEKLIF_INCLUDE_DIR}/ui/page_archive.h"
     "${TEKLIF_INCLUDE_DIR}/ui/page_catalog.h"
-    "${TEKLIF_INCLUDE_DIR}/ui/page_customers.h"
     "${TEKLIF_INCLUDE_DIR}/ui/page_quote.h"
     "${TEKLIF_INCLUDE_DIR}/ui/page_settings.h"
     "${TEKLIF_INCLUDE_DIR}/ui/quote_line_model.h"
@@ -26,13 +24,11 @@ set(TEKLIF_UI_HEADERS
 add_library(teklif_ui STATIC
     ${TEKLIF_UI_HEADERS}
     dlg_first_run.cpp
-    dlg_line_entry.cpp
     item_search.cpp
     item_table_model.cpp
     mainwindow.cpp
     page_archive.cpp
     page_catalog.cpp
-    page_customers.cpp
     page_quote.cpp
     page_settings.cpp
     quote_line_model.cpp

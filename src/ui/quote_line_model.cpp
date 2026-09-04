@@ -69,6 +69,8 @@ QVariant QuoteLineModel::data(const QModelIndex &index, int role) const
         return l.birimFiyat.toString();
     case ColTutar:
         return l.tutar.toString();
+    case ColNot:
+        return l.satirNotu;
     default:
         return {};
     }
@@ -81,16 +83,28 @@ bool QuoteLineModel::setData(const QModelIndex &index, const QVariant &value, in
 
     switch (index.column()) {
     case ColAciklama: {
-        const QString metin = value.toString().trimmed();
-        if (metin.isEmpty())
-            return false; // boş açıklamayla satır anlamsız, reddedilir
-        m_lines[index.row()].aciklama = metin;
+        // Boş bırakılabilir: elle açılan satır boş başlar ve kullanıcı
+        // yazarken hücreyi temizleyebilmelidir. Boş satırlar kaydedilirken
+        // ayıklanır (bkz. filledLines).
+        m_lines[index.row()].aciklama = value.toString().trimmed();
+        emit dataChanged(index, index);
+        return true;
+    }
+    case ColBirim: {
+        m_lines[index.row()].birim = value.toString().trimmed();
+        emit dataChanged(index, index);
+        return true;
+    }
+    case ColNot: {
+        m_lines[index.row()].satirNotu = value.toString().trimmed();
         emit dataChanged(index, index);
         return true;
     }
     case ColMiktar: {
         const auto miktar = parseTurkishNumber(value.toString());
-        if (!miktar.has_value() || miktar.value() <= 0.0)
+        // Negatif miktar anlamsız; SIFIR ise kabul edilir — tutarı olmayan
+        // bir başlık/ara açıklama satırı yazmanın tek yolu budur.
+        if (!miktar.has_value() || miktar.value() < 0.0)
             return false;
         m_lines[index.row()].miktar = miktar.value();
         recomputeTutar(index.row());
@@ -109,7 +123,7 @@ bool QuoteLineModel::setData(const QModelIndex &index, const QVariant &value, in
         return true;
     }
     default:
-        return false; // Sira, Birim, Tutar salt okunur
+        return false; // Sira ve Tutar salt okunur
     }
 }
 
@@ -131,6 +145,8 @@ QVariant QuoteLineModel::headerData(int section, Qt::Orientation orientation, in
         return QStringLiteral("B. Fiyat");
     case ColTutar:
         return QStringLiteral("Tutar");
+    case ColNot:
+        return QStringLiteral("Not");
     default:
         return {};
     }
@@ -144,23 +160,31 @@ Qt::ItemFlags QuoteLineModel::flags(const QModelIndex &index) const
     Qt::ItemFlags f = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
     switch (index.column()) {
     case ColAciklama:
+    case ColBirim:
     case ColMiktar:
     case ColBirimFiyat:
+    case ColNot:
         f |= Qt::ItemIsEditable;
         break;
     default:
-        break; // ColSira, ColBirim, ColTutar salt okunur
+        break; // ColSira ve ColTutar hesaplanır, elle yazılamaz
     }
     return f;
 }
 
-void QuoteLineModel::addLine(const Item &kaynak, double miktar, Money birimFiyat, const QString &satirNotu)
+namespace {
+// Elle açılan satırın başlangıç miktarı.
+constexpr double kVarsayilanMiktar = 1.0;
+} // namespace
+
+int QuoteLineModel::addLine(const Item &kaynak, double miktar, Money birimFiyat,
+                             const QString &satirNotu)
 {
     QuoteLine l;
     l.aciklama = kaynak.ad;    // katalogdan KOPYALANIR
     l.birim = kaynak.birim;    // katalogdan KOPYALANIR
     l.miktar = miktar;
-    l.birimFiyat = birimFiyat; // popup'ta değişmiş olabilir; katalog referansı YOK
+    l.birimFiyat = birimFiyat; // katalog referansı YOK, değer kopyalanır
     l.satirNotu = satirNotu;
     l.tutar = Calculator::lineTotal(miktar, birimFiyat);
 
@@ -170,6 +194,38 @@ void QuoteLineModel::addLine(const Item &kaynak, double miktar, Money birimFiyat
     renumber();
     endInsertRows();
     emit totalsMayHaveChanged();
+    return row;
+}
+
+int QuoteLineModel::addEmptyLine()
+{
+    QuoteLine l;
+    // Miktar 1 ile başlar: elle girilen satırların neredeyse tamamı tek
+    // kalemdir, kullanıcı yalnızca açıklama ve fiyat yazarak bitirebilsin.
+    l.miktar = kVarsayilanMiktar;
+
+    const int row = m_lines.size();
+    beginInsertRows(QModelIndex(), row, row);
+    m_lines.append(l);
+    renumber();
+    endInsertRows();
+    emit totalsMayHaveChanged();
+    return row;
+}
+
+QVector<QuoteLine> QuoteLineModel::filledLines() const
+{
+    QVector<QuoteLine> dolu;
+    dolu.reserve(m_lines.size());
+    for (const QuoteLine &l : m_lines) {
+        if (!l.aciklama.trimmed().isEmpty())
+            dolu.append(l);
+    }
+    // Ayıklamadan sonra numaralar boşluksuz olmalı: belgede "1, 2, 4" diye
+    // giden bir sıra, silinmiş bir satır varmış izlenimi verirdi.
+    for (int i = 0; i < dolu.size(); ++i)
+        dolu[i].sira = i + 1;
+    return dolu;
 }
 
 void QuoteLineModel::removeLine(int row)

@@ -11,11 +11,9 @@
 
 #include "teklif/core/db.h"
 #include "teklif/core/quote_status.h"
-#include "teklif/core/repo_customers.h"
 #include "teklif/core/repo_quotes.h"
 #include "teklif/ui/mainwindow.h"
 #include "teklif/ui/page_archive.h"
-#include "teklif/ui/page_customers.h"
 #include "teklif/ui/page_quote.h"
 #include "teklif/ui/quote_line_model.h"
 #include "teklif/ui/quote_summary_model.h"
@@ -32,33 +30,22 @@ private slots:
     void cleanup();
 
     void archiveListsSavedQuotes();
-    void archiveFilterByCustomer();
+    void archiveSearchFindsByCustomerName();
     void archiveSummaryShowsTotal();
     void archiveDuplicateAddsRowAndEmits();
     void mainWindowOpensQuoteFromArchive();
     void deleteRemovesRowAndEmits();
     void deletingOpenQuoteClearsQuotePage();
-    void customersPageAddsAndEdits();
-    void customersPageShowsCustomerQuotes();
-    void customerAddedIsVisibleInQuotePage();
 
 private:
     QTemporaryDir *m_dir = nullptr;
     QString m_conn;
     QSqlDatabase m_db;
 
-    qint64 addCustomer(const QString &unvan)
-    {
-        Customer c;
-        c.unvan = unvan;
-        QString e;
-        RepoCustomers(m_db).add(c, &e);
-        return c.id;
-    }
-    qint64 addQuote(qint64 custId, const QDate &tarih, qint64 toplamKurus)
+    qint64 addQuote(const QString &musteri, const QDate &tarih, qint64 toplamKurus)
     {
         Quote q;
-        q.customerId = custId;
+        q.musteri.unvan = musteri;
         q.tarih = tarih;
         q.genelToplam = Money(toplamKurus);
         QuoteLine l;
@@ -92,7 +79,7 @@ void TestPageArchive::cleanup()
 
 void TestPageArchive::archiveListsSavedQuotes()
 {
-    const qint64 c = addCustomer(QStringLiteral("Şükrü Çelik"));
+    const QString c = QStringLiteral("Şükrü Çelik");
     addQuote(c, QDate(2026, 8, 1), 10000);
     addQuote(c, QDate(2026, 8, 5), 20000);
 
@@ -100,32 +87,37 @@ void TestPageArchive::archiveListsSavedQuotes()
     QCOMPARE(page.model()->rowCount(), 2);
     // En yeni once.
     QCOMPARE(page.model()->at(0).tarih, QDate(2026, 8, 5));
-    QCOMPARE(page.model()->at(0).customerUnvan, QStringLiteral("Şükrü Çelik"));
+    QCOMPARE(page.model()->at(0).musteriUnvan, QStringLiteral("Şükrü Çelik"));
 }
 
-void TestPageArchive::archiveFilterByCustomer()
+// Musteri secici kaldirildi; musteriye gore listeleme artik arama
+// kutusundan yapiliyor. Kullanicinin en sik ihtiyaci bu oldugu icin
+// ekranin ustunden dogrudan test edilir.
+void TestPageArchive::archiveSearchFindsByCustomerName()
 {
-    const qint64 a = addCustomer(QStringLiteral("A Musteri"));
-    const qint64 b = addCustomer(QStringLiteral("B Musteri"));
-    addQuote(a, QDate(2026, 8, 1), 10000);
-    addQuote(b, QDate(2026, 8, 2), 10000);
+    addQuote(QStringLiteral("Şükrü Çelik"), QDate(2026, 8, 1), 10000);
+    addQuote(QStringLiteral("Şükrü Çelik"), QDate(2026, 8, 2), 10000);
+    addQuote(QStringLiteral("Mehmet Yılmaz"), QDate(2026, 8, 3), 10000);
 
     PageArchive page(m_db);
+    page.refresh();
+    QCOMPARE(page.model()->rowCount(), 3);
+
+    auto *arama = page.findChild<QLineEdit *>(QStringLiteral("arsivAramaEdit"));
+    QVERIFY(arama);
+
+    // Turkce harfler katlanir: "sukru" yazan kullanici "Şükrü"yu bulmali.
+    arama->setText(QStringLiteral("sukru"));
     QCOMPARE(page.model()->rowCount(), 2);
+    QCOMPARE(page.model()->at(0).musteriUnvan, QStringLiteral("Şükrü Çelik"));
 
-    auto *combo = page.findChild<QComboBox *>(QStringLiteral("arsivMusteriCombo"));
-    QVERIFY(combo);
-    const int idx = combo->findData(QVariant(a));
-    QVERIFY(idx > 0);
-    combo->setCurrentIndex(idx); // sinyal applyFilter'i tetiklemeli
-
-    QCOMPARE(page.model()->rowCount(), 1);
-    QCOMPARE(page.model()->at(0).customerId, a);
+    arama->clear();
+    QCOMPARE(page.model()->rowCount(), 3);
 }
 
 void TestPageArchive::archiveSummaryShowsTotal()
 {
-    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    const QString c = QStringLiteral("Musteri");
     addQuote(c, QDate(2026, 8, 1), 10000);
     addQuote(c, QDate(2026, 8, 2), 25050);
 
@@ -138,7 +130,7 @@ void TestPageArchive::archiveSummaryShowsTotal()
 
 void TestPageArchive::archiveDuplicateAddsRowAndEmits()
 {
-    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    const QString c = QStringLiteral("Musteri");
     addQuote(c, QDate(2025, 1, 1), 10000);
 
     PageArchive page(m_db);
@@ -166,7 +158,7 @@ void TestPageArchive::mainWindowOpensQuoteFromArchive()
 {
     // Part 6'nin can alici akisi: arsivden teklif acinca teklif ekrani o
     // teklifi yukler ve o sayfaya gecilir.
-    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    const QString c = QStringLiteral("Musteri");
     const qint64 qid = addQuote(c, QDate(2026, 8, 1), 45000);
 
     MainWindow w(m_db);
@@ -186,73 +178,9 @@ void TestPageArchive::mainWindowOpensQuoteFromArchive()
     QCOMPARE(w.quotePage()->lineModel()->rowCount(), 1);
 }
 
-void TestPageArchive::customersPageAddsAndEdits()
-{
-    PageCustomers page(m_db);
-
-    auto *unvan = page.findChild<QLineEdit *>(QStringLiteral("musteriUnvanEdit"));
-    auto *yetkili = page.findChild<QLineEdit *>(QStringLiteral("musteriYetkiliEdit"));
-    auto *kaydet = page.findChild<QPushButton *>(QStringLiteral("musteriKaydetButton"));
-    QVERIFY(unvan && yetkili && kaydet);
-
-    unvan->setText(QStringLiteral("Yeni Müşteri A.Ş."));
-    yetkili->setText(QStringLiteral("Ayşe Demir"));
-    kaydet->click();
-
-    const qint64 id = page.selectedCustomerId();
-    QVERIFY(id > 0);
-
-    const auto kayit = RepoCustomers(m_db).get(id);
-    QVERIFY(kayit.has_value());
-    QCOMPARE(kayit->unvan, QStringLiteral("Yeni Müşteri A.Ş."));
-    QCOMPARE(kayit->yetkili, QStringLiteral("Ayşe Demir"));
-
-    // Duzenle ve tekrar kaydet.
-    yetkili->setText(QStringLiteral("Mehmet Kaya"));
-    kaydet->click();
-    QCOMPARE(RepoCustomers(m_db).get(id)->yetkili, QStringLiteral("Mehmet Kaya"));
-}
-
-void TestPageArchive::customersPageShowsCustomerQuotes()
-{
-    const qint64 c = addCustomer(QStringLiteral("Musteri"));
-    addQuote(c, QDate(2026, 8, 1), 10000);
-    addQuote(c, QDate(2026, 8, 2), 25050);
-
-    PageCustomers page(m_db);
-    page.selectCustomerById(c);
-
-    auto *tablo = page.findChild<QTableView *>(QStringLiteral("musteriTeklifTable"));
-    QVERIFY(tablo);
-    QCOMPARE(tablo->model()->rowCount(), 2);
-
-    auto *toplam = page.findChild<QLabel *>(QStringLiteral("musteriToplamLabel"));
-    QVERIFY(toplam);
-    QVERIFY2(toplam->text().contains(QStringLiteral("350,50")), qPrintable(toplam->text()));
-}
-
-void TestPageArchive::customerAddedIsVisibleInQuotePage()
-{
-    // Musteri ekraninda eklenen musteri, teklif ekranindaki acilir listede
-    // hemen gorunmeli: MainWindow customersChanged sinyalini bagliyor.
-    MainWindow w(m_db);
-
-    auto *unvan = w.customersPage()->findChild<QLineEdit *>(QStringLiteral("musteriUnvanEdit"));
-    auto *kaydet = w.customersPage()->findChild<QPushButton *>(QStringLiteral("musteriKaydetButton"));
-    QVERIFY(unvan && kaydet);
-
-    unvan->setText(QStringLiteral("Sonradan Eklenen"));
-    kaydet->click();
-
-    auto *combo = w.quotePage()->findChild<QComboBox *>(QStringLiteral("customerCombo"));
-    QVERIFY(combo);
-    QVERIFY2(combo->findText(QStringLiteral("Sonradan Eklenen")) >= 0,
-             "yeni musteri teklif ekranindaki listede yok");
-}
-
 void TestPageArchive::deleteRemovesRowAndEmits()
 {
-    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    const QString c = QStringLiteral("Musteri");
     addQuote(c, QDate(2026, 8, 1), 10000);
     addQuote(c, QDate(2026, 8, 2), 20000);
 
@@ -291,7 +219,7 @@ void TestPageArchive::deletingOpenQuoteClearsQuotePage()
 {
     // Ekranda ACIK olan teklif silinirse form bosaltilmali; yoksa kullanici
     // artik var olmayan bir kaydi kaydetmeye calisir.
-    const qint64 c = addCustomer(QStringLiteral("Musteri"));
+    const QString c = QStringLiteral("Musteri");
     const qint64 qid = addQuote(c, QDate(2026, 8, 1), 10000);
 
     MainWindow w(m_db);

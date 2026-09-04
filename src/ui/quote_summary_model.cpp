@@ -35,7 +35,7 @@ QVariant QuoteSummaryModel::data(const QModelIndex &index, int role) const
         // yapıldığı için gösterim biçimi sıralamayı etkilemez.
         return s.tarih.isValid() ? s.tarih.toString(QStringLiteral("dd.MM.yyyy")) : QString();
     case ColMusteri:
-        return s.customerUnvan;
+        return s.musteriUnvan;
     case ColDurum:
         return s.durum;
     case ColToplam:

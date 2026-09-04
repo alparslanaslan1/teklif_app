@@ -27,13 +27,15 @@ private slots:
     void editMiktarCommaAccepted();
     void editMiktarDotRejected();
     void editMiktarLetterRejected();
-    void editMiktarZeroRejected();
+    void editMiktarZeroAccepted();
     void editMiktarNegativeRejected();
     void editBirimFiyatNegativeRejected();
     void tutarColumnNotEditable();
-    void siraAndBirimColumnsNotEditable();
+    void onlyComputedColumnsAreReadOnly();
     void editAciklamaDoesNotTouchSourceItem();
-    void editAciklamaEmptyRejected();
+    void editAciklamaCanBeCleared();
+    void addEmptyLineStartsBlank();
+    void filledLinesDropsEmptyOnesAndRenumbers();
 };
 
 void TestQuoteLineModel::addLineUpdatesTableAndTotals()
@@ -111,13 +113,16 @@ void TestQuoteLineModel::editMiktarLetterRejected()
     QCOMPARE(model.lines().first().miktar, 5.0);
 }
 
-void TestQuoteLineModel::editMiktarZeroRejected()
+// Sifir miktar KABUL EDILIR: tutari olmayan bir baslik/ara aciklama satiri
+// yazmanin tek yolu budur ("ISCILIK" gibi). Negatif ise hala reddedilir.
+void TestQuoteLineModel::editMiktarZeroAccepted()
 {
     QuoteLineModel model;
     model.addLine(mkItem(QStringLiteral("A"), QStringLiteral("adet")), 5.0, Money(1000), QString());
     const QModelIndex idx = model.index(0, QuoteLineModel::ColMiktar);
-    QVERIFY(!model.setData(idx, QStringLiteral("0"), Qt::EditRole));
-    QCOMPARE(model.lines().first().miktar, 5.0);
+    QVERIFY(model.setData(idx, QStringLiteral("0"), Qt::EditRole));
+    QCOMPARE(model.lines().first().miktar, 0.0);
+    QCOMPARE(model.lines().first().tutar.toString(), QStringLiteral("0,00"));
 }
 
 void TestQuoteLineModel::editMiktarNegativeRejected()
@@ -147,12 +152,20 @@ void TestQuoteLineModel::tutarColumnNotEditable()
     QVERIFY(!model.setData(idx, QStringLiteral("999,00"), Qt::EditRole));
 }
 
-void TestQuoteLineModel::siraAndBirimColumnsNotEditable()
+// Sadece hesaplanan sutunlar kilitli: sira ve tutar. Birim artik
+// duzenlenebilir, cunku elle acilan satirin birimini yazacak baska yer yok.
+void TestQuoteLineModel::onlyComputedColumnsAreReadOnly()
 {
     QuoteLineModel model;
     model.addLine(mkItem(QStringLiteral("A"), QStringLiteral("adet")), 5.0, Money(1000), QString());
     QVERIFY(!(model.flags(model.index(0, QuoteLineModel::ColSira)) & Qt::ItemIsEditable));
-    QVERIFY(!(model.flags(model.index(0, QuoteLineModel::ColBirim)) & Qt::ItemIsEditable));
+    QVERIFY(!(model.flags(model.index(0, QuoteLineModel::ColTutar)) & Qt::ItemIsEditable));
+
+    QVERIFY(model.flags(model.index(0, QuoteLineModel::ColAciklama)) & Qt::ItemIsEditable);
+    QVERIFY(model.flags(model.index(0, QuoteLineModel::ColBirim)) & Qt::ItemIsEditable);
+    QVERIFY(model.flags(model.index(0, QuoteLineModel::ColMiktar)) & Qt::ItemIsEditable);
+    QVERIFY(model.flags(model.index(0, QuoteLineModel::ColBirimFiyat)) & Qt::ItemIsEditable);
+    QVERIFY(model.flags(model.index(0, QuoteLineModel::ColNot)) & Qt::ItemIsEditable);
 }
 
 void TestQuoteLineModel::editAciklamaDoesNotTouchSourceItem()
@@ -169,13 +182,51 @@ void TestQuoteLineModel::editAciklamaDoesNotTouchSourceItem()
     QCOMPARE(kaynak.ad, QStringLiteral("Orijinal Ad"));
 }
 
-void TestQuoteLineModel::editAciklamaEmptyRejected()
+// Aciklama BOS BIRAKILABILIR: elle acilan satir bos baslar ve kullanici
+// yazarken hucreyi temizleyebilmelidir. Bos satirlarin belgeye girmesini
+// engelleyen yer filledLines()'dir, setData degil.
+void TestQuoteLineModel::editAciklamaCanBeCleared()
 {
     QuoteLineModel model;
     model.addLine(mkItem(QStringLiteral("A"), QStringLiteral("adet")), 1.0, Money(1000), QString());
     const QModelIndex idx = model.index(0, QuoteLineModel::ColAciklama);
-    QVERIFY(!model.setData(idx, QStringLiteral("   "), Qt::EditRole));
-    QCOMPARE(model.lines().first().aciklama, QStringLiteral("A"));
+    QVERIFY(model.setData(idx, QStringLiteral("   "), Qt::EditRole));
+    QVERIFY(model.lines().first().aciklama.isEmpty());
+}
+
+// Elle acilan satir: bos aciklama, miktar 1, fiyat 0.
+void TestQuoteLineModel::addEmptyLineStartsBlank()
+{
+    QuoteLineModel model;
+    const int row = model.addEmptyLine();
+    QCOMPARE(row, 0);
+    QCOMPARE(model.rowCount(), 1);
+
+    const QuoteLine &l = model.lines().first();
+    QVERIFY(l.aciklama.isEmpty());
+    QCOMPARE(l.miktar, 1.0);
+    QCOMPARE(l.birimFiyat.kurus(), qint64(0));
+    QCOMPARE(l.sira, 1);
+}
+
+// Doldurulmamis satirlar kayda/belgeye girmemeli; kalanlarin sira numaralari
+// da bosluksuz olmali (belgede "1, 2, 4" gitmesin).
+void TestQuoteLineModel::filledLinesDropsEmptyOnesAndRenumbers()
+{
+    QuoteLineModel model;
+    model.addEmptyLine();                                              // bos kalir
+    model.addLine(mkItem(QStringLiteral("A"), QStringLiteral("adet")), 1.0, Money(1000), QString());
+    model.addEmptyLine();                                              // bos kalir
+    model.addLine(mkItem(QStringLiteral("B"), QStringLiteral("adet")), 2.0, Money(2000), QString());
+
+    QCOMPARE(model.rowCount(), 4);
+
+    const QVector<QuoteLine> dolu = model.filledLines();
+    QCOMPARE(dolu.size(), 2);
+    QCOMPARE(dolu[0].aciklama, QStringLiteral("A"));
+    QCOMPARE(dolu[0].sira, 1);
+    QCOMPARE(dolu[1].aciklama, QStringLiteral("B"));
+    QCOMPARE(dolu[1].sira, 2);
 }
 
 QTEST_APPLESS_MAIN(TestQuoteLineModel)
