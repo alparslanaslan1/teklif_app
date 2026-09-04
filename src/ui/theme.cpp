@@ -195,6 +195,23 @@ QTableView {
 }
 QTableView::item { padding: 5px 7px; }
 QTableView::item:focus { border: none; }
+
+/* HÜCRE DÜZENLEYİCİSİ.
+   Tablo bir hücreyi düzenlerken içine gerçek bir QLineEdit koyar ve onu
+   TAM OLARAK hücrenin dikdörtgeni kadar boyutlandırır. Yukarıdaki genel
+   QLineEdit kuralı 6px dikey iç boşluk verdiği için yazıya ayrılan yer
+   satır yüksekliğinin altına düşüyor ve harfler yazarken kırpılıyordu
+   (yazı bitip düzenleyici kapanınca hücre normal çizildiği için sorun
+   yalnızca yazarken görünüyordu). Düzenleyicinin iç boşluğu bu yüzden
+   ayrıca ve dar tanımlanır. */
+QAbstractItemView QLineEdit,
+QAbstractItemView QAbstractSpinBox,
+QAbstractItemView QComboBox {
+    padding: 0px 4px;
+    border-radius: 3px;
+    border: 1px solid %VURGU%;
+    margin: 0;
+}
 QHeaderView::section {
     background: #f4f6f9;
     color: %METINSOLGUN%;

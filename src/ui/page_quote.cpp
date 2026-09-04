@@ -9,6 +9,7 @@
 #include "teklif/ui/quote_table_view.h"
 
 #include <QDateEdit>
+#include <QItemSelectionModel>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QGridLayout>
@@ -26,6 +27,8 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace {
 
 // Yeni bir teklifin varsayılan geçerlilik süresi (gün).
@@ -35,6 +38,9 @@ constexpr int kVarsayilanGecerlilik = 15;
 // bir diyalog girmez: miktar ve fiyat zaten tablodan düzeltilebiliyor,
 // her kalem için pencere açıp kapatmak akışı yavaşlatıyordu.
 constexpr double kKatalogVarsayilanMiktar = 1.0;
+
+// Kalem tablosunun satır yüksekliği (piksel).
+constexpr int kSatirYuksekligi = 30;
 
 // Tek satırlık müşteri alanı kurar. Yedi alanın hepsi aynı kalıpta
 // olduğu için tek yerde toplanmıştır.
@@ -162,7 +168,9 @@ void PageQuote::setupUi()
     m_satirSilButton = new QPushButton(QStringLiteral("−  Satır sil"), this);
     m_satirSilButton->setObjectName(QStringLiteral("satirSilButton"));
     m_satirSilButton->setToolTip(QStringLiteral("Seçili satırı sil (Del)"));
-    connect(m_satirSilButton, &QPushButton::clicked, this, &PageQuote::deleteCurrentRow);
+    // Silme geri alınamaz; tema bu özelliğe bakıp uyarı rengiyle çizer.
+    m_satirSilButton->setProperty("tehlike", true);
+    connect(m_satirSilButton, &QPushButton::clicked, this, &PageQuote::deleteSelectedRows);
 
     auto *aracCubugu = new QHBoxLayout;
     aracCubugu->addWidget(m_search, /*stretch=*/1);
@@ -182,7 +190,12 @@ void PageQuote::setupUi()
     m_table->horizontalHeader()->setSectionResizeMode(QuoteLineModel::ColNot,
                                                        QHeaderView::Stretch);
     m_table->verticalHeader()->setVisible(false);
+    // Satır yüksekliği yazıya göre değil sabit: düzenleyici (QLineEdit)
+    // hücrenin dikdörtgenine sığdırıldığı için dar satırda yazı kırpılıyordu.
+    m_table->verticalHeader()->setDefaultSectionSize(kSatirYuksekligi);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    // Birden fazla satır seçilip tek seferde silinebilir (Ctrl/Shift ile).
+    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_table->setAlternatingRowColors(true);
     // Hücreye tek tıkla ya da yazmaya başlayınca düzenlemeye girilir:
     // satırların çoğu artık elle dolduruluyor, çift tıklama beklemek
@@ -192,10 +205,17 @@ void PageQuote::setupUi()
 
     connect(m_model, &QuoteLineModel::totalsMayHaveChanged, this, &PageQuote::recomputeTotals);
 
-    // Del tuşu seçili satırı siler.
+    // Düğmenin etkinliği seçimi izler.
+    connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+            &PageQuote::updateRowButtons);
+    connect(m_model, &QAbstractItemModel::modelReset, this, &PageQuote::updateRowButtons);
+    connect(m_model, &QAbstractItemModel::rowsInserted, this, &PageQuote::updateRowButtons);
+    connect(m_model, &QAbstractItemModel::rowsRemoved, this, &PageQuote::updateRowButtons);
+
+    // Del tuşu seçili satırları siler.
     auto *silKisayol = new QShortcut(QKeySequence(Qt::Key_Delete), m_table);
     silKisayol->setContext(Qt::WidgetShortcut);
-    connect(silKisayol, &QShortcut::activated, this, &PageQuote::deleteCurrentRow);
+    connect(silKisayol, &QShortcut::activated, this, &PageQuote::deleteSelectedRows);
 
     // --- Toplam -------------------------------------------------------------
     m_genelLabel = new QLabel(this);
@@ -243,6 +263,8 @@ void PageQuote::setupUi()
     ana->addWidget(m_table, /*stretch=*/1);
     ana->addLayout(toplamSatir);
     ana->addLayout(butonlar);
+
+    updateRowButtons();
 }
 
 // ---------------------------------------------------------------------------
@@ -456,12 +478,44 @@ void PageQuote::addEmptyRow()
     m_table->edit(idx);
 }
 
-void PageQuote::deleteCurrentRow()
+void PageQuote::deleteSelectedRows()
 {
-    const QModelIndex idx = m_table->currentIndex();
-    if (!idx.isValid())
+    // Açık bir hücre düzenleyicisi varsa ÖNCE kapatılır. Aksi halde satır
+    // silindikten sonra düzenleyici kapanır ve yazdığı değeri artık BAŞKA
+    // bir satıra denk gelen indekse yazar — kullanıcı sildiği satırın
+    // metninin bir alttaki satıra atladığını görürdü.
+    if (QWidget *odak = focusWidget()) {
+        if (m_table->isAncestorOf(odak))
+            m_table->setFocus();
+    }
+
+    // Seçili satırlar; yoksa imlecin bulunduğu satır. İkisi de yoksa
+    // yapacak bir şey yok.
+    QList<int> satirlar;
+    if (QItemSelectionModel *sec = m_table->selectionModel()) {
+        const QModelIndexList secili = sec->selectedRows();
+        for (const QModelIndex &i : secili)
+            satirlar.append(i.row());
+    }
+    if (satirlar.isEmpty() && m_table->currentIndex().isValid())
+        satirlar.append(m_table->currentIndex().row());
+    if (satirlar.isEmpty())
         return;
-    m_model->removeLine(idx.row());
+
+    // SONDAN BAŞA: baştan silinseydi her silme sonrasında kalan satırların
+    // numaraları kayar ve sonraki silme yanlış satıra denk gelirdi.
+    std::sort(satirlar.begin(), satirlar.end(), std::greater<int>());
+    for (int satir : satirlar)
+        m_model->removeLine(satir);
+
+    updateRowButtons();
+}
+
+void PageQuote::updateRowButtons()
+{
+    const QItemSelectionModel *sec = m_table->selectionModel();
+    const bool secimVar = sec && (!sec->selectedRows().isEmpty() || sec->currentIndex().isValid());
+    m_satirSilButton->setEnabled(secimVar && m_model->rowCount() > 0);
 }
 
 // ---------------------------------------------------------------------------

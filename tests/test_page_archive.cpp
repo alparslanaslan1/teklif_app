@@ -6,6 +6,7 @@
 #include <QPushButton>
 #include <QSqlDatabase>
 #include <QMessageBox>
+#include <QListWidget>
 #include <QTableView>
 #include <QTemporaryDir>
 
@@ -13,6 +14,8 @@
 #include "teklif/core/quote_status.h"
 #include "teklif/core/repo_quotes.h"
 #include "teklif/ui/mainwindow.h"
+#include "teklif/core/repo_items.h"
+#include "teklif/ui/item_search.h"
 #include "teklif/ui/page_archive.h"
 #include "teklif/ui/page_quote.h"
 #include "teklif/ui/quote_line_model.h"
@@ -34,6 +37,7 @@ private slots:
     void archiveSummaryShowsTotal();
     void archiveDuplicateAddsRowAndEmits();
     void mainWindowOpensQuoteFromArchive();
+    void mainWindowLoadsCatalogAtStartup();
     void deleteRemovesRowAndEmits();
     void deletingOpenQuoteClearsQuotePage();
 
@@ -176,6 +180,37 @@ void TestPageArchive::mainWindowOpensQuoteFromArchive()
 
     QCOMPARE(w.quotePage()->currentQuoteId(), qid);
     QCOMPARE(w.quotePage()->lineModel()->rowCount(), 1);
+}
+
+// Teklif ekranindaki arama kutusu, program acilir acilmaz katalogu
+// bilmelidir.
+//
+// GERILEME TESTI: reloadCatalog() yalnizca ilk calistirma sihirbazindan
+// sonra ve katalog ekraninda bir degisiklik olunca cagriliyordu. Yani
+// programi ikinci kez acan kullanici icin arama kutusu BOSTU ve kayitli
+// malzemeler hic cikmiyordu.
+void TestPageArchive::mainWindowLoadsCatalogAtStartup()
+{
+    Item it;
+    it.kod = QStringLiteral("DG-01");
+    it.ad = QStringLiteral("Kombi bağlantı seti");
+    it.birim = QStringLiteral("adet");
+    it.varsayilanFiyat = Money(125000);
+    QString e;
+    QVERIFY2(RepoItems(m_db).add(it, &e), qPrintable(e));
+
+    // Pencere, katalog ZATEN doluyken kuruluyor - ilk calistirma degil.
+    MainWindow w(m_db);
+
+    auto *arama = w.quotePage()->findChild<ItemSearch *>(QStringLiteral("itemSearch"));
+    QVERIFY(arama);
+    auto *edit = arama->findChild<QLineEdit *>(QStringLiteral("itemSearchEdit"));
+    QVERIFY(edit);
+    auto *sonuclar = arama->findChild<QListWidget *>();
+    QVERIFY(sonuclar);
+
+    QTest::keyClicks(edit, QStringLiteral("kombi"));
+    QCOMPARE(sonuclar->count(), 1);
 }
 
 void TestPageArchive::deleteRemovesRowAndEmits()

@@ -80,8 +80,12 @@ private slots:
     void onExportPdfClicked();
     // "+" düğmesi: boş satır açar ve imleci açıklama hücresine götürür.
     void addEmptyRow();
-    // "−" düğmesi ve Del tuşu: seçili satırı siler.
-    void deleteCurrentRow();
+    // "−" düğmesi ve Del tuşu: seçili satır(lar)ı siler.
+    void deleteSelectedRows();
+    // Seçim değiştikçe "Satır sil" düğmesini etkin/pasif yapar; düğmenin
+    // sönük durması "seçili satır yok" demektir, kullanıcı tıklayıp
+    // hiçbir şey olmamasıyla karşılaşmaz.
+    void updateRowButtons();
 
 private:
     // Depolar bağlantıyı kendi içlerinde tutar; ekran ömrü boyunca bir kez

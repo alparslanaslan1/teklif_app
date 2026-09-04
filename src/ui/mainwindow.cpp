@@ -108,6 +108,15 @@ void MainWindow::setupUi(QSqlDatabase db)
     lay->addWidget(m_stack, /*stretch=*/1);
     setCentralWidget(govde);
 
+    // Katalogu BURADA bir kez yükle.
+    //
+    // Eskiden yalnızca iki yerden çağrılıyordu: ilk çalıştırma sihirbazından
+    // sonra ve katalog ekranında bir değişiklik olduğunda. Yani programı
+    // ikinci kez açan kullanıcının teklif ekranındaki arama kutusu BOŞTU —
+    // katalogda kayıtlı malzemeler hiç çıkmıyordu, ta ki Katalog ekranına
+    // girip bir şey değiştirene kadar.
+    m_pageQuote->reloadCatalog();
+
     m_nav->setCurrentRow(PageQuoteIndex);
 }
 

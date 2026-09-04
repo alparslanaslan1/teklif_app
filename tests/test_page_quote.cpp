@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QItemSelectionModel>
 #include <QTableView>
 #include <QTemporaryDir>
 #include <QSqlDatabase>
@@ -45,6 +46,8 @@ private slots:
     void savedQuoteKeepsOldCatalogPrice();
     void tenLinesKeyboardOnly();
     void manualRowIsAddedAndEditable();
+    void deleteButtonRemovesSelectedRows();
+    void deleteButtonIsDisabledWithoutSelection();
     void emptyRowsAreDroppedOnSave();
     void customerFieldsAreSavedWithQuote();
 
@@ -216,6 +219,64 @@ void TestPageQuote::manualRowIsAddedAndEditable()
         ->setCurrentIndex(model->index(0, QuoteLineModel::ColAciklama));
     sil->click();
     QCOMPARE(model->rowCount(), 0);
+}
+
+// "Satır sil" SECILI satirlari siler; birden fazla secilebilir ve secim
+// sirasi ne olursa olsun dogru satirlar gitmelidir (silme sonda baslamazsa
+// kalan satirlarin indeksleri kayar ve yanlis satir silinir).
+void TestPageQuote::deleteButtonRemovesSelectedRows()
+{
+    PageQuote page(m_db);
+    auto *ekle = page.findChild<QPushButton *>(QStringLiteral("satirEkleButton"));
+    auto *sil = page.findChild<QPushButton *>(QStringLiteral("satirSilButton"));
+    auto *tablo = page.findChild<QTableView *>(QStringLiteral("quoteTable"));
+    QVERIFY(ekle && sil && tablo);
+
+    auto *model = page.lineModel();
+    for (int i = 0; i < 4; ++i) {
+        ekle->click();
+        model->setData(model->index(i, QuoteLineModel::ColAciklama),
+                        QStringLiteral("Satır %1").arg(i), Qt::EditRole);
+    }
+    QCOMPARE(model->rowCount(), 4);
+
+    // Tek satir: sadece imlec konumlandirilmis olsa bile silinmeli.
+    tablo->setCurrentIndex(model->index(1, QuoteLineModel::ColAciklama));
+    sil->click();
+    QCOMPARE(model->rowCount(), 3);
+    QCOMPARE(model->lines()[1].aciklama, QStringLiteral("Satır 2"));
+
+    // Iki satir birden: 0 ve 2 secilir, aradaki kalmali.
+    tablo->clearSelection();
+    tablo->selectionModel()->select(model->index(0, 0),
+                                     QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    tablo->selectionModel()->select(model->index(2, 0),
+                                     QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    sil->click();
+    QCOMPARE(model->rowCount(), 1);
+    QCOMPARE(model->lines().first().aciklama, QStringLiteral("Satır 2"));
+    // Kalan satirin numarasi 1'e cekilmeli.
+    QCOMPARE(model->lines().first().sira, 1);
+}
+
+// Silinecek bir sey yokken dugme SONUK olmali: kullanici tiklayip hicbir
+// sey olmamasiyla karsilasmasin, once bir satir secmesi gerektigini
+// dugmenin halinden anlasin.
+void TestPageQuote::deleteButtonIsDisabledWithoutSelection()
+{
+    PageQuote page(m_db);
+    auto *ekle = page.findChild<QPushButton *>(QStringLiteral("satirEkleButton"));
+    auto *sil = page.findChild<QPushButton *>(QStringLiteral("satirSilButton"));
+    QVERIFY(ekle && sil);
+
+    QVERIFY2(!sil->isEnabled(), "satır yokken 'Satır sil' etkin görünüyor");
+
+    ekle->click();
+    QVERIFY2(sil->isEnabled(), "satır eklendi ama 'Satır sil' hâlâ sönük");
+
+    sil->click();
+    QCOMPARE(page.lineModel()->rowCount(), 0);
+    QVERIFY2(!sil->isEnabled(), "son satır silindi ama düğme etkin kaldı");
 }
 
 // Kullanici "+" ile acip doldurmadigi bir satiri ekranda birakmis olabilir;
